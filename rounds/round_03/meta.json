@@ -1,0 +1,178 @@
+{
+  "session": {
+    "mode": "sim",
+    "scenario": "crowded",
+    "seed": 103,
+    "teams": 12,
+    "limits": {
+      "position_limit": 100,
+      "max_ops_per_sec": 25,
+      "self_trade_prevention": true
+    },
+    "dt": 0.1
+  },
+  "strategy": "evolved",
+  "params": {
+    "version": "v2"
+  },
+  "pairs": [
+    [
+      "ASML",
+      "ASML_DUAL"
+    ]
+  ],
+  "args": {
+    "strategy": "evolved",
+    "observe": false,
+    "pairs": null,
+    "period": 0.15,
+    "minutes": 10.0,
+    "param": [
+      "version=v2"
+    ],
+    "settings": null,
+    "logdir": "/home/claude/optiver-hack/logs/rounds",
+    "book_depth": 10,
+    "record_every": 1,
+    "metrics_every": 10.0,
+    "flatten": false,
+    "no_flatten_on_exit": false,
+    "sim": "crowded",
+    "teams": 12,
+    "seed": 103
+  },
+  "instruments": {
+    "ASML": {
+      "instrument_id": "ASML",
+      "tick_size": 0.1,
+      "paused": false,
+      "underlying": "ASML",
+      "is_primary": true
+    },
+    "ASML_DUAL": {
+      "instrument_id": "ASML_DUAL",
+      "tick_size": 0.1,
+      "paused": false,
+      "underlying": "ASML",
+      "is_primary": false
+    }
+  },
+  "env": {
+    "python": "3.13.18",
+    "platform": "Linux-6.18.44-fc-v338-x86_64-with-glibc2.39",
+    "started_wall": "2026-11-11T00:00:16.431805+01:00",
+    "optibook_version": null,
+    "git_commit": "7a3922e",
+    "git_dirty": true
+  },
+  "t_start": 0.0,
+  "settings_file": "/home/claude/optiver-hack/logs/rounds/20261111-000016_evolved_sim/settings.json",
+  "time_unit": "seconds; t = unix time live, sim seconds in --sim",
+  "leaderboard": [
+    {
+      "name": "us",
+      "pnl": 62.8,
+      "volume": 806,
+      "max_abs_net_delta": 13
+    },
+    {
+      "name": "team06_quote_hedge",
+      "pnl": 12.3,
+      "volume": 652,
+      "max_abs_net_delta": 5
+    },
+    {
+      "name": "team08_quote_hedge",
+      "pnl": 10.8,
+      "volume": 648,
+      "max_abs_net_delta": 10
+    },
+    {
+      "name": "team01_quote_hedge",
+      "pnl": 10.5,
+      "volume": 696,
+      "max_abs_net_delta": 10
+    },
+    {
+      "name": "team02_cross_arb",
+      "pnl": 7.4,
+      "volume": 108,
+      "max_abs_net_delta": 0
+    },
+    {
+      "name": "team10_quote_hedge",
+      "pnl": 2.3,
+      "volume": 552,
+      "max_abs_net_delta": 10
+    },
+    {
+      "name": "team00_quote_hedge",
+      "pnl": 1.6,
+      "volume": 126,
+      "max_abs_net_delta": 5
+    },
+    {
+      "name": "team05_quote_hedge",
+      "pnl": 1.6,
+      "volume": 144,
+      "max_abs_net_delta": 5
+    },
+    {
+      "name": "team03_cross_arb",
+      "pnl": 0.0,
+      "volume": 0,
+      "max_abs_net_delta": 0
+    },
+    {
+      "name": "team09_cross_arb",
+      "pnl": 0.0,
+      "volume": 0,
+      "max_abs_net_delta": 0
+    },
+    {
+      "name": "team11_cross_arb",
+      "pnl": 0.0,
+      "volume": 0,
+      "max_abs_net_delta": 0
+    },
+    {
+      "name": "team04_quote_hedge",
+      "pnl": -9.2,
+      "volume": 804,
+      "max_abs_net_delta": 20
+    },
+    {
+      "name": "team07_buggy",
+      "pnl": -28.37,
+      "volume": 697,
+      "max_abs_net_delta": 95
+    }
+  ],
+  "rank": 1,
+  "n_competitors": 13,
+  "t_end": 600.5,
+  "stop_reason": "time limit",
+  "loops": 6000,
+  "final": {
+    "positions": {
+      "ASML": 0,
+      "ASML_DUAL": 0
+    },
+    "pnl": 62.8,
+    "net_delta": {
+      "ASML/ASML_DUAL": 0
+    }
+  },
+  "rows": {
+    "book": 10198,
+    "ticks": 3449,
+    "orders": 1361,
+    "fills": 184,
+    "own_orders": 673,
+    "state": 431,
+    "instruments": 1,
+    "metrics": 61,
+    "events": 1035
+  },
+  "errors": 0
+}

@@ -148,6 +148,13 @@ def main():
     R.append(f"- Code: {meta.get('env', {}).get('git_commit')} dirty={meta.get('env', {}).get('git_dirty')}, "
              f"optibook {meta.get('env', {}).get('optibook_version')}\n")
 
+    if meta.get("leaderboard"):
+        R.append(f"## Leaderboard (sim): we are **{meta['rank']}/{meta['n_competitors']}**\n")
+        R.append(table(["rank", "team", "pnl", "volume", "max |net delta|"],
+                       [[k + 1, r["name"], r["pnl"], r["volume"], r["max_abs_net_delta"]]
+                        for k, r in enumerate(meta["leaderboard"])]))
+        R.append("")
+
     # ---------------------------------------------------------------- settings timeline
     sets = [e for e in S["events"] if e["kind"] in ("settings", "paused_by_settings", "resumed_by_settings",
                                                      "manual_flatten", "instrument_changed", "stream_disabled")]

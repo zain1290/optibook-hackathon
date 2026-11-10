@@ -17,18 +17,25 @@ class Actor:
 class LiquidMakerBot(Actor):
     """Primary listing market maker: knows fair value, tight spread, deep book, requotes every step."""
 
-    def __init__(self, name, inst, half_spread_ticks=0.5, levels=3, size=40, act_every=1):
+    def __init__(self, name, inst, half_spread_ticks=0.5, levels=3, size=40, act_every=1, keep_queue=False):
         self.name, self.inst = name, inst
         self.hs, self.levels, self.size, self.act_every = half_spread_ticks, levels, size, act_every
+        self.keep_queue = keep_queue  # True: leave quotes alone while prices are unchanged (keeps queue spot)
+        self._last = None
 
     def act(self, m):
         if m.instruments[self.inst].paused:
             return
-        m.cancel_all(self.name, self.inst, charge=False)
         c = m.fv(self.inst) / m.tick(self.inst)
         bid0, ask0 = math.floor(c - self.hs), math.ceil(c + self.hs)
         if ask0 <= bid0:
             ask0 = bid0 + 1
+        if self.keep_queue and self._last == (bid0, ask0):
+            sides = {o.side for o in m.resting(self.name, self.inst)}
+            if sides == {"bid", "ask"}:
+                return
+        self._last = (bid0, ask0)
+        m.cancel_all(self.name, self.inst, charge=False)
         for i in range(self.levels):
             v = max(1, int(self.size * (1 + i) * m.rng.uniform(0.6, 1.4)))
             m.submit(self.name, self.inst, "bid", bid0 - i, v, charge=False)

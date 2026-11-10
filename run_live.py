@@ -21,7 +21,7 @@ import time
 from run_sim import parse_params
 from runlog import LoggingExchange, Recorder, Run, Settings, Tee, environment_info, to_jsonable
 from strategies import STRATEGIES
-from strategies.common import Ctx, flatten_all, hedge_net
+from strategies.common import Ctx, flatten_all, flatten_net, hedge_net
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -53,7 +53,7 @@ def make_session(a):
             for _ in range(max(1, round(sec / m.dt))):
                 m.step()
         return e, (lambda: m.t), wait, {"mode": "sim", "scenario": a.sim, "seed": a.seed, "teams": a.teams,
-                                        "limits": TEAM_LIMITS, "dt": m.dt}
+                                        "limits": TEAM_LIMITS, "dt": m.dt, "_market": m}
     from optibook.synchronous_client import Exchange  # only on the hackathon machines
     e = Exchange()
     e.connect()
@@ -74,8 +74,10 @@ def main():
     ap.add_argument("--record-every", type=int, default=1, help="record every N loops (raise if it slows the bot)")
     ap.add_argument("--metrics-every", type=float, default=10.0, help="seconds between monitor prints")
     ap.add_argument("--flatten", action="store_true", help="cancel everything, close all positions, exit")
-    ap.add_argument("--no-flatten-on-exit", action="store_true")
-    ap.add_argument("--sim", choices=["basic", "competitive", "hard", "crowded"], help="run offline in the simulator")
+    ap.add_argument("--no-flatten-on-exit", action="store_true", help="same as --exit none")
+    ap.add_argument("--exit", choices=["all", "net", "none"], default="net",
+                    help="on stop: close everything (all), only unhedged delta (net, default), or nothing")
+    ap.add_argument("--sim", choices=["basic", "competitive", "hard", "crowded", "crowded_tight", "crowded_sticky", "crowded_clones"], help="run offline in the simulator")
     ap.add_argument("--teams", type=int, default=12)
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
@@ -101,6 +103,7 @@ def main():
         strat = STRATEGIES[a.strategy](pairs, **params)
         settings = Settings(a.settings or os.path.join(run.dir, "settings.json"), strat, run)
 
+    market = sess.pop("_market", None)
     run.write_meta({"session": sess, "strategy": None if strat is None else a.strategy,
                     "params": {k: v for k, v in params.items() if k != "clock"}, "pairs": pairs,
                     "args": {k: v for k, v in vars(a).items()}, "instruments": to_jsonable(instruments),
@@ -124,6 +127,8 @@ def main():
     rec = Recorder(e, proxy, run, pairs, clock, depth=a.book_depth, metrics_period=a.metrics_every)
     rec.write_state(clock(), force=True)
     t_end = None if a.minutes is None else clock() + a.minutes * 60
+    if strat is not None and t_end is not None and hasattr(strat, "end_time"):
+        strat.end_time = t_end  # lets the strategy wind down inventory before the end
     n, was_paused, reason = 0, False, "time limit"
     pause_ctx = None
     try:
@@ -172,8 +177,11 @@ def main():
         print("stopping")
     finally:
         try:
-            if strat is not None and not a.no_flatten_on_exit:
+            exit_mode = "none" if a.no_flatten_on_exit else a.exit
+            if strat is not None and exit_mode == "all":
                 flatten_all(proxy, ids)
+            elif strat is not None and exit_mode == "net":
+                flatten_net(proxy, pairs)
             elif strat is not None:
                 for i in ids:
                     proxy.delete_orders(i)
@@ -185,6 +193,14 @@ def main():
         except Exception as ex:
             run.error("shutdown", ex)
             final = {}
+        if market is not None:  # sim only: the true leaderboard (on the day, read it off the screen)
+            board = sorted(({"name": k, "pnl": round(market.pnl(k), 2), "volume": acc.volume_traded,
+                             "max_abs_net_delta": acc.max_abs_delta}
+                            for k, acc in market.accounts.items() if k == "us" or k.startswith("team")),
+                           key=lambda r: -r["pnl"])
+            rank = 1 + next(i for i, r in enumerate(board) if r["name"] == "us")
+            run.update_meta(leaderboard=board, rank=rank, n_competitors=len(board))
+            print(f"rank {rank}/{len(board)} | top: " + ", ".join(f"{r['name']} {r['pnl']}" for r in board[:3]))
         run.event("stop", reason=reason, loops=n)
         run.update_meta(t_end=clock(), stop_reason=reason, loops=n, final=final,
                         rows={s: w.n for s, w in run.w.items()}, errors=run.counters["errors"])

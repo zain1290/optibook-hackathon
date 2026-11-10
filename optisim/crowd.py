@@ -47,13 +47,22 @@ class UnhedgedQuoter:
             ctx.limit_order(D, "ask", mid + 2, min(self.size, ctx.capacity(D, "ask", pos, {})))
 
 
-def make_crowd(pairs, n, seed, clock):
-    """Returns [(name, strategy, act_every, phase)] for n competing teams."""
+def make_crowd(pairs, n, seed, clock, clone_frac=0.0, clone_version="v8"):
+    """Returns [(name, strategy, act_every, phase)] for n competing teams.
+    clone_frac: share of teams that run OUR evolved strategy (with jittered settings): the
+    'everyone's AI converged on the same idea' case."""
+    from strategies.evolved import Evolved
     r = random.Random(seed + 1000)
     out = []
+    n_clones = int(round(n * clone_frac))
     for k in range(n):
         u = r.random()
         every = r.choice([1, 2, 3, 5, 10])
+        if k < n_clones:
+            s = Evolved(pairs, version=clone_version, size=r.choice([5, 10, 15, 20]),
+                        min_profit=r.choice([0.3, 0.5, 0.8]), clock=clock)
+            out.append((f"team{k:02d}_clone", s, every, r.randrange(every)))
+            continue
         if u < 0.6:
             s = QuoteHedge(pairs, edge=r.choice([0, 1, 1, 2]), size=r.choice([5, 10, 20]),
                            penny=r.random() < 0.7, clock=clock)

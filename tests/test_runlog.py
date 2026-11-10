@@ -20,7 +20,7 @@ def _rows(d, s):
 
 
 def test_full_run_logs_are_complete_and_reconcile(tmp_path):
-    d = _run(tmp_path, "--sim", "crowded", "--teams", "4", "--strategy", "quote_hedge", "--minutes", "3")
+    d = _run(tmp_path, "--sim", "crowded", "--teams", "4", "--strategy", "quote_hedge", "--minutes", "3", "--exit", "all")
     for s in ["book", "ticks", "orders", "fills", "own_orders", "state", "instruments", "metrics", "events"]:
         assert _rows(d, s), f"{s}.jsonl is empty"
     meta = json.load(open(os.path.join(d, "meta.json")))
@@ -79,3 +79,9 @@ def test_history_fallback_when_poll_methods_missing(tmp_path):
     fills = _rows(run.dir, "fills")
     assert len(fills) >= 1 and sum(f["volume"] for f in fills) == 3  # found once, not duplicated
     assert _rows(run.dir, "ticks")
+
+
+def test_exit_net_leaves_only_hedged_pairs(tmp_path):
+    d = _run(tmp_path, "--sim", "crowded", "--teams", "4", "--strategy", "evolved", "--minutes", "2", "--exit", "net")
+    meta = json.load(open(os.path.join(d, "meta.json")))
+    assert all(v == 0 for v in meta["final"]["net_delta"].values())

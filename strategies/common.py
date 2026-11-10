@@ -171,6 +171,29 @@ def hedge_net(ctx: Ctx, primary, dual, positions, max_slip_ticks=2, max_unhedged
     return vol
 
 
+def flatten_net(e, pairs, slip_ticks=5):
+    """Exit mode 'net': cancel everything and close only the UNHEDGED part (primary + dual net delta),
+    trading the liquid primary. A hedged pair (long dual / short primary) has no price risk."""
+    ctx = Ctx(e)
+    ctx.log("flatten_net", positions=e.get_positions())
+    for P, D in pairs:
+        e.delete_orders(P)
+        e.delete_orders(D)
+    pos = e.get_positions()
+    for P, D in pairs:
+        net = pos.get(P, 0) + pos.get(D, 0)
+        venue = P if not ctx.paused(P) else D
+        if net == 0 or ctx.paused(venue):
+            continue
+        bids, asks = ctx.book(venue)
+        if ctx._tag:
+            ctx._tag("flatten")
+        if net > 0 and bids:
+            e.insert_order(venue, price=ctx.px(venue, bids[0][0] - slip_ticks), volume=net, side="ask", order_type="ioc")
+        elif net < 0 and asks:
+            e.insert_order(venue, price=ctx.px(venue, asks[0][0] + slip_ticks), volume=-net, side="bid", order_type="ioc")
+
+
 def flatten_all(e, instruments, slip_ticks=5):
     """End of session / emergency: cancel everything and close all positions with IOC."""
     ctx = Ctx(e)

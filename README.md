@@ -16,6 +16,7 @@ python tools/crowd_test.py --strategy quote_hedge -p edge=2  # PnL and rank as 0
 python run_live.py --observe --minutes 5                    # watch the real market first, no trading
 python run_live.py --strategy cross_arb                     # v0 live
 python run_live.py --strategy quote_hedge --pairs ASML:ASML_DUAL -p edge=1
+python run_live.py --strategy evolved --period 0.1           # latest version (v10); -p version=v8 for size 10
 python run_live.py --flatten                                # panic button: cancel all, close all
 python tools/pack_run.py logs/<run>                         # report + chart + zip to share
 # rehearse the exact live pipeline offline
@@ -58,6 +59,33 @@ All parameters are guesses. The sim is for testing logic and comparing variants,
 Ablations on `hard` (3 seeds): penny-jumping off 217 vs on 287; loop every 0.1s 315, 0.2s 287, 0.5s 272, 1.0s 267;
 edge 1 tick best (edge 3 drops to ~160); size 10 beats 5 and 20; inventory skew had no clear benefit here.
 Takeaway: once other teams exist, pure taking dies (4 in `competitive`) and passive quoting with instant hedging carries the PnL.
+
+## 10 rounds of improvement: `strategies/evolved.py` (v0 -> v10)
+
+`quote_hedge.py` is the frozen original. `evolved.py` holds every version as feature flags (`-p version=v6` reruns any of them).
+Each round: play a logged 10-minute round (`tools/round.py`), read `report.md`, change one thing, benchmark it on 8 held-out
+markets and on robustness markets (`tools/bench.py`), adopt or reject. Full walkthrough: `notebooks/strategy_evolution.ipynb`.
+
+| version | change (from the logs) | standard market PnL / rank |
+|---|---|---|
+| v0 | original | -4.3 / 7.25 |
+| v1 | rest the hedge inside the primary spread instead of crossing it | 6.1 / 5.25 |
+| v2 | sticky quotes, quote first, single-leg arb (fixes churn and a self-trade) | 10.7 / 4.12 |
+| v3 | quote at fair +- (measured hedge cost + min profit); stop reading own hedge as market | 47.3 / 1.62 |
+| v4 | inventory skew only near the position limit (position is hedged anyway) | 58.3 / 1.38 |
+| v6 | adaptive hedge ladder: touch -> mid -> IOC, touch step only where it fills | 87.6 / 1.25 |
+| v8 | arb unwind threshold depends on hedge cost (fixes the 1-tick market: -34.7 -> +3.2) | 87.5 / 1.12 |
+| v10 | quote size 15 (marginal; worse on a 1-tick market, raise live via settings) | 90.2 / 1.25 |
+
+v5 (artifact of the sim's market maker), v7 wind-down and v9 queue-jumping were tested and rejected; v9 adopted a faster loop.
+Round results: 1st in 8 of 10 rounds (2nd vs clones of ourselves in round 10, 3rd behind two unhedged gamblers in round 4,
+10th in round 2 before the churn fix). Among risk-controlled rivals, v8/v10 rank 1st in every standard and sticky benchmark market.
+
+```bash
+python tools/round.py 11 --version v10                        # play another logged round
+python tools/bench.py v8 v10 --scenario crowded_tight --exit net
+python tools/eval_versions.py && python tools/build_notebook.py --execute
+```
 
 ## Crowded market: what happens when everyone ships the same AI-written bot
 
@@ -141,5 +169,6 @@ If the bot slows down live, raise `--record-every` (the monitor prints recorder 
 - [ ] `run_live.py --observe` 5 min, then `analyze_run.py`; paste the brief (limits, rate limit, scoring) into notes.md
 - [ ] Tweak `scenarios.py` to match, rerun the param sweep (edge, size)
 - [ ] Start live with `cross_arb` (safe), watch PnL and positions
-- [ ] Switch to `quote_hedge` once hedging is confirmed working live
+- [ ] Switch to `evolved` (v8 if the primary spread is 1 tick, v10 if >= 2) once hedging is confirmed working live
+- [ ] Check the brief: may we finish holding a hedged pair? If not, use `--exit all`
 - [ ] Prepare the pitch: what, why it is low risk, chart, what you'd do next

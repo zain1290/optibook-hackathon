@@ -11,7 +11,7 @@ import time
 
 ALIASES = {"skew_per_lot": "skew", "soft_limit": "soft"}
 NESTED = {"take_min_edge": ("taker", "min_edge")}
-SPECIAL = {"pause", "flatten", "hedge_when_paused"}
+SPECIAL = {"pause", "flatten", "hedge_when_paused", "end_in_secs"}
 
 
 def current_settings(strategy):
@@ -51,6 +51,8 @@ class Settings:
         for k, v in new.items():
             if self._applied.get(k) == v and not force:
                 continue
+            if k == "end_in_secs" and v is not None and hasattr(self.strategy, "end_time"):
+                self.strategy.end_time = self.strategy.clock() + float(v)  # session ends in v seconds
             if k in SPECIAL:
                 if self.flags.get(k) != v:
                     changes[k] = [self.flags.get(k), v]

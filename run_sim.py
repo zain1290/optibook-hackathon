@@ -28,15 +28,24 @@ def parse_params(items):
     return out
 
 
-def run_one(strategy, scenario, seed, minutes, every, params, n_teams=12):
+def run_one(strategy, scenario, seed, minutes, every, params, n_teams=12, exit_mode=None):
+    """exit_mode None: mark positions at fair value (no exit cost). 'all' / 'net': close like run_live does."""
     m, pairs = build(scenario, seed, n_teams=n_teams)
     strat = STRATEGIES[strategy](pairs, clock=lambda: m.t, **params) if strategy != "none" else None
     e = attach(m, "us", strat, every) if strat else None
     if strat is None:
         m.add_account("us")
+    if strat is not None and hasattr(strat, "end_time"):
+        strat.end_time = minutes * 60
     steps = int(minutes * 60 / m.dt)
     for _ in range(steps):
         m.step()
+    if e is not None and exit_mode:
+        from strategies.common import flatten_all, flatten_net
+        m.actors = [x for x in m.actors if getattr(x, "e", None) is not e]  # stop our strategy
+        flatten_all(e, list(m.instruments)) if exit_mode == "all" else flatten_net(e, pairs)
+        for _ in range(5):
+            m.step()
     rep = m.report("us")
     rep["others"] = {n: round(m.pnl(n), 1) for n in m.accounts if n.startswith("team")}
     rep["zero_sum_check"] = round(sum(m.pnl(n) for n in m.accounts), 6)
@@ -46,7 +55,7 @@ def run_one(strategy, scenario, seed, minutes, every, params, n_teams=12):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--strategy", default="cross_arb", choices=list(STRATEGIES) + ["none"])
-    ap.add_argument("--scenario", default="basic", choices=["basic", "competitive", "hard", "crowded"])
+    ap.add_argument("--scenario", default="basic", choices=["basic", "competitive", "hard", "crowded", "crowded_tight", "crowded_sticky", "crowded_clones"])
     ap.add_argument("--teams", type=int, default=12, help="competitor count for --scenario crowded")
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--minutes", type=float, default=10)
