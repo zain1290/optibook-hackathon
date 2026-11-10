@@ -1,0 +1,4 @@
+numpy
+matplotlib
+pytest
+# optibook client is provided on the hackathon machines
