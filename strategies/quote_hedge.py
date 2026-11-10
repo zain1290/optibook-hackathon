@@ -28,6 +28,7 @@ class QuoteHedge:
         self.taker = CrossArb(pairs, position_limit, min_edge=take_min_edge, hedge=False)
         self.guard = HedgeGuard(hedge_cooldown, clock) if clock else HedgeGuard(hedge_cooldown)
         self.ctx = None
+        self._last_tgt = {}
 
     def step(self, e):
         if self.ctx is None:
@@ -45,9 +46,11 @@ class QuoteHedge:
     def targets(self, ctx, P, D, pos):
         """Desired (bid_ticks, bid_vol, ask_ticks, ask_vol) on the dual, or None to pull quotes."""
         if ctx.paused(P) or ctx.paused(D):
+            self._pulled(ctx, D, "paused")
             return None
         pb, pa = ctx.book(P)
         if not (pb and pa):
+            self._pulled(ctx, D, "primary book empty")
             return None
         db, da = ctx.book(D, exclude_own=True)
         posD = pos.get(D, 0)
@@ -69,14 +72,26 @@ class QuoteHedge:
             ask = db[0][0] + 1
         bv = self.size if posD < self.soft else 0
         av = self.size if posD > -self.soft else 0
-        return bid, bv, ask, av
+        tgt = (bid, bv, ask, av)
+        if self._last_tgt.get(D) != tgt:  # log the inputs behind every quote change
+            self._last_tgt[D] = tgt
+            ctx.log("quote_target", inst=D, bid=ctx.px(D, bid), bid_vol=bv, ask=ctx.px(D, ask), ask_vol=av,
+                    primary_bbo=[ctx.px(P, pb[0][0]), ctx.px(P, pa[0][0])],
+                    others_bbo=[ctx.px(D, db[0][0]) if db else None, ctx.px(D, da[0][0]) if da else None],
+                    posD=posD, shift=shift, edge=self.edge, size=self.size, penny=self.penny)
+        return tgt
+
+    def _pulled(self, ctx, D, why):
+        if self._last_tgt.get(D) != why:
+            self._last_tgt[D] = why
+            ctx.log("quotes_pulled", inst=D, reason=why)
 
     def quote(self, ctx, P, D, pos):
         tgt = self.targets(ctx, P, D, pos)
         outstanding = ctx.e.get_outstanding_orders(D)
         if tgt is None:
             if outstanding:
-                ctx.delete_all(D)
+                ctx.delete_all(D, tag="pull")
             return
         bid, bv, ask, av = tgt
         for side, price, vol in (("bid", bid, bv), ("ask", ask, av)):
@@ -86,14 +101,14 @@ class QuoteHedge:
                 if keep is None and ctx.t(D, o.price) == price and vol > 0:
                     keep = o
                 else:
-                    ctx.delete(D, o.order_id)
+                    ctx.delete(D, o.order_id, tag="requote")
             if vol <= 0:
                 continue
             if keep is not None:
                 if keep.volume > vol:
-                    ctx.amend(D, keep.order_id, vol)  # shrinking keeps queue priority
+                    ctx.amend(D, keep.order_id, vol, tag="shrink")  # shrinking keeps queue priority
                 continue  # same price: leave it alone (keeps queue priority, saves rate limit)
             # worst-case capacity: other-side orders don't count; same-side ones were just deleted
             v = min(vol, ctx.capacity(D, side, pos, {}))
             if v > 0:
-                ctx.limit_order(D, side, price, v)
+                ctx.limit_order(D, side, price, v, tag="quote")

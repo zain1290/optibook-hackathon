@@ -48,8 +48,10 @@ class CrossArb:
             vol = min(db[0][1], pa[0][1], self.max_clip,
                       ctx.capacity(D, "ask", pos), ctx.capacity(P, "bid", pos))
             if vol > 0:
-                ctx.ioc(D, "ask", db[0][0], vol)
-                ctx.ioc(P, "bid", pa[0][0], vol)
+                ctx.log("arb", pair=[P, D], dir="sell_dual_buy_primary", edge_ticks=db[0][0] - pa[0][0],
+                        vol=vol, posD=posD, dual_bid=ctx.px(D, db[0][0]), primary_ask=ctx.px(P, pa[0][0]))
+                ctx.ioc(D, "ask", db[0][0], vol, tag="arb_dual")
+                ctx.ioc(P, "bid", pa[0][0], vol, tag="arb_primary")
                 return
         # Direction 2: buy dual at its ask, sell primary at its bid
         need = self.unwind_edge if posD < 0 else self.min_edge
@@ -57,5 +59,7 @@ class CrossArb:
             vol = min(da[0][1], pb[0][1], self.max_clip,
                       ctx.capacity(D, "bid", pos), ctx.capacity(P, "ask", pos))
             if vol > 0:
-                ctx.ioc(D, "bid", da[0][0], vol)
-                ctx.ioc(P, "ask", pb[0][0], vol)
+                ctx.log("arb", pair=[P, D], dir="buy_dual_sell_primary", edge_ticks=pb[0][0] - da[0][0],
+                        vol=vol, posD=posD, dual_ask=ctx.px(D, da[0][0]), primary_bid=ctx.px(P, pb[0][0]))
+                ctx.ioc(D, "bid", da[0][0], vol, tag="arb_dual")
+                ctx.ioc(P, "ask", pb[0][0], vol, tag="arb_primary")

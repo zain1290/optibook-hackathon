@@ -1,20 +1,29 @@
-"""Run a strategy against the REAL Optibook exchange (on the day).
+"""Run a strategy with full logging, against the REAL Optibook exchange or the simulator.
 
-  python run_live.py --strategy cross_arb                       # auto-detects X / X_DUAL pairs
-  python run_live.py --strategy quote_hedge --pairs ASML:ASML_DUAL -p edge=1 -p size=10
-  python run_live.py --flatten                                  # cancel all + close all positions
+Live (on the day):
+  python run_live.py --observe                         # trade nothing, just record the market (do this first)
+  python run_live.py --strategy cross_arb
+  python run_live.py --strategy quote_hedge --pairs ASML:ASML_DUAL -p edge=1
+  python run_live.py --flatten                         # panic button: cancel all + close all, then exit
 
-Ctrl+C stops the loop, cancels resting orders and (by default) flattens positions.
+Same pipeline offline (tests logging, monitor and settings before Thursday):
+  python run_live.py --sim crowded --teams 12 --strategy quote_hedge --minutes 10
+
+While it runs: edit the run's settings.json (path printed at start) to change parameters live,
+or set "pause": true / "flatten": true. Ctrl+C stops, cancels orders and flattens (unless --no-flatten-on-exit).
+Every run writes a folder under logs/. Share it with:  python tools/pack_run.py logs/<run>
 """
 import argparse
-import logging
+import os
+import sys
 import time
 
 from run_sim import parse_params
+from runlog import LoggingExchange, Recorder, Run, Settings, Tee, environment_info, to_jsonable
 from strategies import STRATEGIES
-from strategies.common import flatten_all
+from strategies.common import Ctx, flatten_all, hedge_net
 
-logging.getLogger("client").setLevel("ERROR")
+BASE = os.path.dirname(os.path.abspath(__file__))
 
 
 def detect_pairs(instruments):
@@ -30,53 +39,158 @@ def detect_pairs(instruments):
     return pairs
 
 
-def main():
-    from optibook.synchronous_client import Exchange  # only available on the hackathon machines
+def make_session(a):
+    """Returns (exchange, clock, wait, info). wait(seconds) sleeps live, advances the market in the sim."""
+    if a.sim:
+        from optisim import SimExchange, build
+        from optisim.market import Limits
+        from optisim.scenarios import TEAM_LIMITS
+        m, _ = build(a.sim, a.seed, n_teams=a.teams)
+        m.add_account("us", Limits(**TEAM_LIMITS))
+        e = SimExchange(m, "us")
 
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--strategy", default="cross_arb", choices=list(STRATEGIES))
-    ap.add_argument("--pairs", help="comma list of PRIMARY:DUAL, primary = the LIQUID listing")
-    ap.add_argument("--period", type=float, default=0.15, help="seconds between loops")
-    ap.add_argument("-p", "--param", action="append")
-    ap.add_argument("--flatten", action="store_true", help="just cancel everything and close positions")
-    ap.add_argument("--no-flatten-on-exit", action="store_true")
-    a = ap.parse_args()
-
+        def wait(sec):
+            for _ in range(max(1, round(sec / m.dt))):
+                m.step()
+        return e, (lambda: m.t), wait, {"mode": "sim", "scenario": a.sim, "seed": a.seed, "teams": a.teams,
+                                        "limits": TEAM_LIMITS, "dt": m.dt}
+    from optibook.synchronous_client import Exchange  # only on the hackathon machines
     e = Exchange()
     e.connect()
+    return e, time.time, time.sleep, {"mode": "live", "limits": "unknown: paste the brief into notes.md"}
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--strategy", default="cross_arb", choices=list(STRATEGIES))
+    ap.add_argument("--observe", action="store_true", help="record only, send no orders")
+    ap.add_argument("--pairs", help="comma list of PRIMARY:DUAL, primary = the LIQUID listing")
+    ap.add_argument("--period", type=float, default=0.15, help="seconds between loops")
+    ap.add_argument("--minutes", type=float, help="stop after this long (default: until Ctrl+C; sim: 10)")
+    ap.add_argument("-p", "--param", action="append", help="strategy param, e.g. -p edge=2")
+    ap.add_argument("--settings", help="settings file to hot-reload (default: <run folder>/settings.json)")
+    ap.add_argument("--logdir", default=os.path.join(BASE, "logs"))
+    ap.add_argument("--book-depth", type=int, default=10)
+    ap.add_argument("--record-every", type=int, default=1, help="record every N loops (raise if it slows the bot)")
+    ap.add_argument("--metrics-every", type=float, default=10.0, help="seconds between monitor prints")
+    ap.add_argument("--flatten", action="store_true", help="cancel everything, close all positions, exit")
+    ap.add_argument("--no-flatten-on-exit", action="store_true")
+    ap.add_argument("--sim", choices=["basic", "competitive", "hard", "crowded"], help="run offline in the simulator")
+    ap.add_argument("--teams", type=int, default=12)
+    ap.add_argument("--seed", type=int, default=0)
+    a = ap.parse_args()
+    if a.sim and a.minutes is None:
+        a.minutes = 10
+
+    e, clock, wait, sess = make_session(a)
+    mode = "observe" if a.observe else ("flatten" if a.flatten else a.strategy)
+    run = Run(a.logdir, mode, sess["mode"], clock)
+    sys.stdout = Tee(os.path.join(run.dir, "console.log"))
+    proxy = LoggingExchange(e, run)
     instruments = e.get_instruments()
-    print("instruments:", {k: (v.tick_size, getattr(v, "paused", None)) for k, v in instruments.items()})
+    ids = sorted(instruments)
+    pairs = [tuple(p.split(":")) for p in a.pairs.split(",")] if a.pairs else detect_pairs(instruments)
+
+    strat, settings = None, None
+    params = parse_params(a.param)
+    if not a.observe and not a.flatten:
+        if sess["mode"] == "live":
+            params.setdefault("hedge_cooldown", 0.2)
+        else:
+            params["clock"] = clock
+        strat = STRATEGIES[a.strategy](pairs, **params)
+        settings = Settings(a.settings or os.path.join(run.dir, "settings.json"), strat, run)
+
+    run.write_meta({"session": sess, "strategy": None if strat is None else a.strategy,
+                    "params": {k: v for k, v in params.items() if k != "clock"}, "pairs": pairs,
+                    "args": {k: v for k, v in vars(a).items()}, "instruments": to_jsonable(instruments),
+                    "env": environment_info(BASE), "t_start": clock(),
+                    "settings_file": settings.path if settings else None,
+                    "time_unit": "seconds; t = unix time live, sim seconds in --sim"})
+    print(f"run folder: {run.dir}")
+    print("instruments:", {k: (getattr(v, 'tick_size', None), getattr(v, 'paused', None)) for k, v in instruments.items()})
+    print("pairs (primary, dual):", pairs, "<- CHECK the primary is the liquid one")
+    if settings:
+        print(f"live settings file: {settings.path}")
+    run.event("start", mode=mode, pairs=pairs)
+
     if a.flatten:
-        flatten_all(e, list(instruments))
-        print("positions:", e.get_positions())
+        flatten_all(proxy, ids)
+        print("positions after flatten:", e.get_positions())
+        run.event("stop", reason="flatten only")
+        run.close()
         return
 
-    pairs = [tuple(p.split(":")) for p in a.pairs.split(",")] if a.pairs else detect_pairs(instruments)
-    print("pairs (primary, dual):", pairs, "<- CHECK the primary is the liquid one")
-    params = {"hedge_cooldown": 0.2, **parse_params(a.param)}
-    strat = STRATEGIES[a.strategy](pairs, **params)
-
-    n, t0 = 0, time.time()
+    rec = Recorder(e, proxy, run, pairs, clock, depth=a.book_depth, metrics_period=a.metrics_every)
+    rec.write_state(clock(), force=True)
+    t_end = None if a.minutes is None else clock() + a.minutes * 60
+    n, was_paused, reason = 0, False, "time limit"
+    pause_ctx = None
     try:
-        while True:
-            try:
-                strat.step(e)
-            except Exception as ex:  # never let one bad response kill the bot
-                print("step error:", repr(ex))
+        while t_end is None or clock() < t_end:
+            t0 = time.perf_counter()
+            if strat is not None:
+                settings.poll()
+                fl = settings.flags
+                try:
+                    if fl.get("flatten"):
+                        run.event("manual_flatten")
+                        flatten_all(proxy, ids)
+                        fl["flatten"] = False
+                        print("flattened. set \"flatten\" back to false in settings.json")
+                    if fl.get("pause"):
+                        if not was_paused:
+                            for i in ids:
+                                proxy.delete_orders(i)
+                            run.event("paused_by_settings")
+                            pause_ctx = pause_ctx or Ctx(proxy, getattr(strat, "limit", 100), strat.budget)
+                        if fl.get("hedge_when_paused", True):
+                            pos = e.get_positions()
+                            for P, D in pairs:
+                                hedge_net(pause_ctx, P, D, pos)
+                    else:
+                        if was_paused:
+                            run.event("resumed_by_settings")
+                        strat.step(proxy)
+                    was_paused = bool(fl.get("pause"))
+                except Exception as ex:  # one bad response must never kill the bot
+                    run.error("strategy.step", ex)
+                    print("step error:", repr(ex))
+            loop_ms = (time.perf_counter() - t0) * 1000
             n += 1
-            if n % 100 == 0:
-                print(f"[{time.time() - t0:7.1f}s] pnl={e.get_pnl():.2f} pos={e.get_positions()}")
-            time.sleep(a.period)
+            if n % a.record_every == 0:
+                try:
+                    rec.snapshot(loop_ms)
+                except Exception as ex:
+                    run.error("recorder", ex)
+            if sess["mode"] == "live":
+                wait(max(0.0, a.period - (time.perf_counter() - t0)))
+            else:
+                wait(a.period)
     except KeyboardInterrupt:
+        reason = "ctrl+c"
         print("stopping")
     finally:
-        if not a.no_flatten_on_exit:
-            flatten_all(e, [i for p in pairs for i in p])
-        else:
-            for p in pairs:
-                for i in p:
-                    e.delete_orders(i)
-        print("final positions:", e.get_positions(), "pnl:", e.get_pnl())
+        try:
+            if strat is not None and not a.no_flatten_on_exit:
+                flatten_all(proxy, ids)
+            elif strat is not None:
+                for i in ids:
+                    proxy.delete_orders(i)
+            if sess["mode"] == "sim":
+                wait(0.5)
+            rec.snapshot()
+            final = rec.write_state(clock(), force=True)
+            rec.emit_metrics(clock())
+        except Exception as ex:
+            run.error("shutdown", ex)
+            final = {}
+        run.event("stop", reason=reason, loops=n)
+        run.update_meta(t_end=clock(), stop_reason=reason, loops=n, final=final,
+                        rows={s: w.n for s, w in run.w.items()}, errors=run.counters["errors"])
+        run.close()
+        print(f"final: {final}")
+        print(f"logs: {run.dir}\nshare: python tools/pack_run.py \"{run.dir}\"")
 
 
 if __name__ == "__main__":

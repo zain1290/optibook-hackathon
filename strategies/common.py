@@ -36,6 +36,19 @@ class Ctx:
         self.limit = position_limit
         self.budget = budget or RateBudget()
         self.inst = e.get_instruments()
+        # optional hooks provided by runlog.LoggingExchange (no-ops on the raw exchange)
+        self._log = getattr(e, "log_event", None)
+        self._tag = getattr(e, "tag_next", None)
+
+    def log(self, kind, **data):
+        if self._log:
+            self._log(kind, **data)
+
+    def _take(self):
+        if self.budget.take():
+            return True
+        self.log("throttled")  # counted, not written line by line
+        return False
 
     def refresh_instruments(self):
         self.inst = self.e.get_instruments()
@@ -79,31 +92,41 @@ class Ctx:
             return max(0, self.limit - pos - pending)
         return max(0, self.limit + pos - pending)
 
-    def ioc(self, i, side, price_ticks, volume):
-        if volume <= 0 or not self.budget.take():
+    def ioc(self, i, side, price_ticks, volume, tag=None):
+        if volume <= 0 or not self._take():
             return None
+        if self._tag:
+            self._tag(tag)
         return self.e.insert_order(i, price=self.px(i, price_ticks), volume=int(volume), side=side,
                                    order_type="ioc")
 
-    def limit_order(self, i, side, price_ticks, volume):
-        if volume <= 0 or not self.budget.take():
+    def limit_order(self, i, side, price_ticks, volume, tag=None):
+        if volume <= 0 or not self._take():
             return None
+        if self._tag:
+            self._tag(tag)
         return self.e.insert_order(i, price=self.px(i, price_ticks), volume=int(volume), side=side,
                                    order_type="limit")
 
-    def delete(self, i, order_id):
-        if not self.budget.take():
+    def delete(self, i, order_id, tag=None):
+        if not self._take():
             return False
+        if self._tag:
+            self._tag(tag)
         return self.e.delete_order(i, order_id=order_id)
 
-    def delete_all(self, i):
-        if not self.budget.take():
+    def delete_all(self, i, tag=None):
+        if not self._take():
             return False
+        if self._tag:
+            self._tag(tag)
         return self.e.delete_orders(i)
 
-    def amend(self, i, order_id, volume):
-        if not self.budget.take():
+    def amend(self, i, order_id, volume, tag=None):
+        if not self._take():
             return False
+        if self._tag:
+            self._tag(tag)
         return self.e.amend_order(i, order_id=order_id, volume=int(volume))
 
 
@@ -143,13 +166,15 @@ def hedge_net(ctx: Ctx, primary, dual, positions, max_slip_ticks=2, max_unhedged
     cap = ctx.capacity(venue, side, positions)
     vol = min(abs(net), cap)
     worst = lvls[0][0] - max_slip_ticks if side == "ask" else lvls[0][0] + max_slip_ticks
-    ctx.ioc(venue, side, worst, vol)
+    ctx.ioc(venue, side, worst, vol, tag="hedge" if venue == primary else "hedge_on_dual")
+    ctx.log("hedge", pair=[primary, dual], net=net, venue=venue, vol=vol, limit_px=ctx.px(venue, worst))
     return vol
 
 
 def flatten_all(e, instruments, slip_ticks=5):
     """End of session / emergency: cancel everything and close all positions with IOC."""
     ctx = Ctx(e)
+    ctx.log("flatten_all", positions=e.get_positions())
     for i in instruments:
         e.delete_orders(i)
     pos = e.get_positions()
@@ -158,6 +183,8 @@ def flatten_all(e, instruments, slip_ticks=5):
         if p == 0 or ctx.paused(i):
             continue
         bids, asks = ctx.book(i)
+        if ctx._tag:
+            ctx._tag("flatten")
         if p > 0 and bids:
             e.insert_order(i, price=ctx.px(i, bids[0][0] - slip_ticks), volume=p, side="ask", order_type="ioc")
         elif p < 0 and asks:

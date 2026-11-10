@@ -6,17 +6,20 @@ Strategies use only the real `optibook.synchronous_client.Exchange` API, so the 
 ## Quick start
 
 ```bash
-python -m pytest -q tests                                   # engine sanity (9 tests)
+python -m pytest -q tests                                   # engine + logging tests (13)
 python run_sim.py --strategy cross_arb   --scenario basic --seeds 5
 python run_sim.py --strategy quote_hedge --scenario hard  --seeds 5 -p edge=1 -p size=10
 python run_sim.py --strategy quote_hedge --scenario hard  --plot equity.png
 python tools/market_stats.py --scenario competitive         # spreads, cross frequency, trade counts
 python tools/crowd_test.py --strategy quote_hedge -p edge=2  # PnL and rank as 0..24 rival teams join
 # on the day
-python tools/record_live.py --minutes 5                     # watch the real market first, no trading
+python run_live.py --observe --minutes 5                    # watch the real market first, no trading
 python run_live.py --strategy cross_arb                     # v0 live
 python run_live.py --strategy quote_hedge --pairs ASML:ASML_DUAL -p edge=1
 python run_live.py --flatten                                # panic button: cancel all, close all
+python tools/pack_run.py logs/<run>                         # report + chart + zip to share
+# rehearse the exact live pipeline offline
+python run_live.py --sim crowded --teams 12 --strategy quote_hedge --minutes 10
 ```
 
 ## Layout
@@ -25,8 +28,9 @@ python run_live.py --flatten                                # panic button: canc
 optisim/      simulator: book.py (price-time matching), market.py (clock, limits, accounts, PnL),
               exchange.py (SimExchange = Optibook API), bots.py, scenarios.py
 strategies/   common.py (rate budget, worst-case capacity, hedger, flatten), cross_arb.py (v0), quote_hedge.py (v1)
-tools/        market_stats.py (sim calibration), record_live.py (live calibration)
-run_sim.py    backtest across seeds        run_live.py   real exchange loop with crash guard + flatten on exit
+runlog/       logging: core.py (run folder, exchange proxy), recorder.py (market snapshots + live monitor), settings.py (hot reload)
+tools/        market_stats.py (sim calibration), crowd_test.py, analyze_run.py (report + chart), pack_run.py (zip to share)
+run_sim.py    fast backtest across seeds   run_live.py   live or --sim loop with full logging, monitor, hot settings, flatten on exit
 ```
 
 ## What the simulator models
@@ -42,7 +46,7 @@ run_sim.py    backtest across seeds        run_live.py   real exchange loop with
 | Scoring | PnL marked at true fair value (honest) and at book mid (what a dashboard shows), drawdown, max net delta, ops, rejects. Zero-sum check across all accounts every run |
 
 Scenarios: `basic` (1 stock, no teams), `competitive` (+2 teams, informed flow, rare jumps), `hard` (2 stocks, frequent jumps, teams, informed flow, primary paused 300-360s), `crowded` (competitive market + N AI-style teams, see below).
-All parameters are guesses. The sim is for testing logic and comparing variants, not predicting PnL. Recalibrate with `record_live.py` on the day.
+All parameters are guesses. The sim is for testing logic and comparing variants, not predicting PnL. Recalibrate on the day from `run_live.py --observe` + `tools/analyze_run.py` (it prints a calibration block).
 
 ## Baseline results (10 sim minutes, mean +- sd over seeds)
 
@@ -103,14 +107,38 @@ Lesson: in a crowd the copied strategy is worth ~0. The edge comes from (a) spee
 9. **Loop speed matters**: no prints in the hot loop, logger level ERROR, short sleep.
 10. **Pull dual quotes if the primary is paused** (fills could not be hedged). Emergency hedge on the dual only if delta gets big.
 11. **Crash-proof loop + kill switch**: try/except around each step, `--flatten` ready, cancel stale orders on start.
-12. **Record before trading**: 5 minutes of `record_live.py` to set edge and size from real spreads.
+12. **Record before trading**: 5 minutes of `run_live.py --observe` to set edge and size from real spreads.
 13. **Check which listing is liquid**: in the MADLAD utils, `phil_A` points at `PHILIPS_B` and vice versa. Look at spreads and volume, don't trust names.
 14. **Judging is not only PnL**: keep a PnL + delta chart and a 1-minute explanation of risk control ready.
 15. Not implemented yet: microprice fair value, multiple quote levels, queue-position model, news hook.
 
+## Logging: every run is fully recorded
+
+Every `run_live.py` run (live, `--observe` or `--sim`) writes `logs/<time>_<strategy>_<mode>/`:
+
+| File | What | Why it matters |
+|---|---|---|
+| meta.json | mode, strategy, params, pairs, full instrument reference data, code version, final state | what was running |
+| book.jsonl | every instrument's order book (10 levels) whenever it changes | rebuild the market, spreads, crosses, mids for markouts |
+| ticks.jsonl | every public trade, all fields incl. buyer/seller names if the client gives them | who trades, how much, who is aggressive |
+| orders.jsonl | every insert/amend/delete we send: request, full response, reject reason, latency, tag | rejects, rate use, why each order was sent |
+| fills.jsonl | every fill: tag, order type, fair mid at fill, edge in ticks | what makes and loses money |
+| own_orders.jsonl | our resting orders whenever they change | queue/competition at our price |
+| state.jsonl | positions, PnL, net delta per pair (1 s and on change) | risk over time |
+| instruments.jsonl | instrument data whenever it changes | pauses, new products |
+| metrics.jsonl | the monitor every 10 s (also printed): spreads, crossed %, others at/better than our quotes, fills and edge by tag, markouts 1/5/30 s, ops/s, rejects, throttles, latency, loop time | live tuning |
+| events.jsonl | quote target changes with inputs, arbs, hedges, settings changes, pauses, errors with traceback | why the bot did what it did |
+| console.log, notes.md | terminal output; your notes (paste the brief, leaderboard, what you changed) | context the bot can't see |
+| settings.json | live parameters: edit while running, applies in ~1 s; `"pause": true`, `"flatten": true` | change strategy without restarting |
+
+After a run: `python tools/analyze_run.py logs/<run>` writes `report.md` + `overview.png` (PnL, positions, mids with our fills):
+market stats, counterparties, our order mix, rejects, latency, peak ops/s, PnL attribution by tag with markouts, risk, errors,
+and a sim calibration line. `python tools/pack_run.py logs/<run>` (or `--all`) zips it to share.
+If the bot slows down live, raise `--record-every` (the monitor prints recorder vs strategy loop time).
+
 ## Day-of checklist
 
-- [ ] `record_live.py` 5 min, note spreads, cross %, trades/min, limits and rate limit from the brief
+- [ ] `run_live.py --observe` 5 min, then `analyze_run.py`; paste the brief (limits, rate limit, scoring) into notes.md
 - [ ] Tweak `scenarios.py` to match, rerun the param sweep (edge, size)
 - [ ] Start live with `cross_arb` (safe), watch PnL and positions
 - [ ] Switch to `quote_hedge` once hedging is confirmed working live

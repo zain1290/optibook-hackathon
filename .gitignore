@@ -3,3 +3,5 @@ __pycache__/
 .pytest_cache/
 books.csv
 *.log
+logs/
+settings.json
