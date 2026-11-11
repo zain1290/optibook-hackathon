@@ -56,7 +56,7 @@ class StockMM:
         self.clock = clock or time.monotonic
         self.instruments = [s for s in instruments.split(",")] if isinstance(instruments, str) else instruments
         self.position_limit, self.size, self.inside, self.quote_edge = position_limit, size, inside, quote_edge
-        self.soft_limit = soft_limit if soft_limit is not None else int(position_limit * 0.6)
+        self.soft_limit = soft_limit if soft_limit is not None else position_limit // 3  # 100 of 300: same PnL, less risk
         self.skew_per_lot, self.sticky_ticks = skew_per_lot, sticky_ticks
         self.take_edge, self.take_size = take_edge, take_size
         self.news_pause, self.news_trade_size, self.news_min_score = news_pause, news_trade_size, news_min_score

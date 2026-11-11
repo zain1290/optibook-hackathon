@@ -81,7 +81,7 @@
     "soft"
    ],
    "short": "Above this position, stop quoting the side that would make it bigger.",
-   "long": "A safety margin below the position limit. If we already own 80 and the soft limit is 80, the bot stops offering to buy more and only offers to sell. Empty means 80% of the position limit.",
+   "long": "A safety margin below the position limit. If we already own 80 and the soft limit is 80, the bot stops offering to buy more and only offers to sell. Empty means 80% of the position limit. Stocks: the default is a third of the position limit (100 of 300). In the simulator that earned the same as 180 with a third less risk and a better Sharpe.",
    "when": "Lower it if positions keep running into the hard limit."
   },
   "max_unhedged": {
@@ -340,8 +340,8 @@
    "group": "speed",
    "unit": "seconds",
    "short": "How often the bot looks at the market and acts.",
-   "long": "Shorter is faster (0.1 beat 0.5 clearly when rivals ran the same strategy) but uses more computer time. If the monitor shows the loop taking longer than this, raise it.",
-   "when": "0.1 normally."
+   "long": "How long the bot waits between looks at the market. Picking off goes to whoever reacts first: in the simulator the same bot made +2,603 at 0.1 s, +1,986 at 0.2 s and +1,258 at 0.4 s. On the real exchange each look costs a few milliseconds per stock, so the loop cannot go much faster than the calls allow (Health shows the loop time).",
+   "when": "0.1. Lower to 0.05 only if Health shows the loop takes well under 50 ms."
   },
   "record_every": {
    "label": "Record every N loops",

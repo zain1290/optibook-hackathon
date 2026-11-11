@@ -141,7 +141,7 @@ def main():
     ap.add_argument("--strategy", default="combo", choices=list(STRATEGIES))
     ap.add_argument("--observe", action="store_true", help="record only, send no orders")
     ap.add_argument("--pairs", help="comma list of PRIMARY:DUAL, primary = the LIQUID listing")
-    ap.add_argument("--period", type=float, default=0.15, help="seconds between loops")
+    ap.add_argument("--period", type=float, default=0.1, help="seconds between loops (faster wins pick-offs)")
     ap.add_argument("--minutes", type=float, help="stop after this long (default: until Ctrl+C; sim: 10)")
     ap.add_argument("-p", "--param", action="append", help="strategy param, e.g. -p edge=2")
     ap.add_argument("--settings", help="settings file to hot-reload (default: <run folder>/settings.json)")
