@@ -316,6 +316,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if u.path in ("/", "/index.html"):
                 return self._send(200, open(os.path.join(UI_DIR, "index.html"), "rb").read(), "text/html; charset=utf-8")
+            if u.path in ("/params.json", "/handbook.md"):
+                ctype = "application/json" if u.path.endswith(".json") else "text/markdown; charset=utf-8"
+                return self._send(200, open(os.path.join(UI_DIR, u.path.lstrip("/")), "rb").read(), ctype)
             if u.path == "/api/meta":
                 from optisim.scenarios import TEAM_LIMITS
                 return self._send(200, {"strategies": strategy_schema(), "base": BASE, "team_limits": TEAM_LIMITS,

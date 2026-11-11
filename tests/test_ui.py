@@ -49,3 +49,25 @@ def test_panel_end_to_end():
     finally:
         srv.terminate()
         srv.wait(5)
+
+
+def test_handbook_covers_every_setting():
+    """Every strategy parameter and evolved flag has a plain-language entry, and the handbook has the anchors the panel links to."""
+    sys.path.insert(0, os.path.join(BASE, "ui"))
+    import server
+    schema = server.strategy_schema()
+    guide = json.load(open(os.path.join(BASE, "ui", "params.json")))
+    names = set(guide["params"])
+    needed = set()
+    for spec in schema.values():
+        needed |= {p["name"] for p in spec.get("params", [])}
+        needed |= set(spec.get("flag_types") or {})
+    assert not (needed - names), f"settings without an explanation: {sorted(needed - names)}"
+    for name, p in guide["params"].items():
+        if "alias_of" in p:
+            continue
+        assert p["group"] in {g["id"] for g in guide["groups"]} and p["label"] and p["short"], name
+    hb = open(os.path.join(BASE, "ui", "handbook.md"), encoding="utf-8").read()
+    for anchor in ("{#start}", "{#settings}", "{#glossary}", "{#strategies}", "{{PARAMS}}"):
+        assert anchor in hb
+    assert "—" not in hb and "—" not in json.dumps(guide, ensure_ascii=False)

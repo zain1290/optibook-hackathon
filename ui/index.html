@@ -8,40 +8,37 @@
 :root {
   --paper: #eef1f4; --panel: #ffffff; --ink: #14213d; --ink-2: #5b6475; --ink-3: #8a93a3;
   --rule: #d5dbe3; --rule-2: #e6eaf0; --accent: #1f4fa3; --accent-ink: #ffffff; --accent-soft: #e3eaf7;
-  --s1: #1f4fa3; --s2: #c7741e; --good: #1c8a5a; --bad: #c2361f; --bad-soft: #fbe9e6; --warn: #a86a00;
-  --live-a: #c2361f; --live-b: #a92b17;
+  --s1: #1f4fa3; --s2: #c7741e; --good: #1c8a5a; --good-soft: #e3f3ea; --bad: #c2361f; --bad-soft: #fbe9e6;
+  --warn: #9a6200; --warn-soft: #fbf1dc; --live-a: #c2361f; --live-b: #a92b17;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --rail-h: 62px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --paper: #0f1726; --panel: #172133; --ink: #e6ecf5; --ink-2: #a3aec2; --ink-3: #6f7b91;
     --rule: #2a3750; --rule-2: #223047; --accent: #4f7fd6; --accent-ink: #0b1220; --accent-soft: #1e2d4a;
-    --s1: #4f7fd6; --s2: #c27c33; --good: #3fb37f; --bad: #e0573f; --bad-soft: #3a1f1d; --warn: #d9a13a;
-    color-scheme: dark;
+    --s1: #4f7fd6; --s2: #c27c33; --good: #3fb37f; --good-soft: #15302a; --bad: #e0573f; --bad-soft: #3a1f1d;
+    --warn: #d9a13a; --warn-soft: #33290f; color-scheme: dark;
   }
 }
-:root[data-theme="dark"] {
-  --paper: #0f1726; --panel: #172133; --ink: #e6ecf5; --ink-2: #a3aec2; --ink-3: #6f7b91;
-  --rule: #2a3750; --rule-2: #223047; --accent: #4f7fd6; --accent-ink: #0b1220; --accent-soft: #1e2d4a;
-  --s1: #4f7fd6; --s2: #c27c33; --good: #3fb37f; --bad: #e0573f; --bad-soft: #3a1f1d; --warn: #d9a13a;
-  color-scheme: dark;
-}
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.45 var(--sans); }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.5 var(--sans); }
 body { font-variant-numeric: tabular-nums; }
 button, input, select, textarea { font: inherit; color: inherit; }
+select { max-width: 100%; text-overflow: ellipsis; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
-h2 { font-size: 17px; } h3 { font-size: 14px; }
+h2 { font-size: 17px; } h3 { font-size: 14.5px; }
 a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 12.5px; background: var(--paper); padding: 1px 4px; border-radius: 4px; }
 .muted { color: var(--ink-2); } .faint { color: var(--ink-3); }
 .pos { color: var(--good); } .neg { color: var(--bad); }
 
 /* ---------- status rail: the one loud element ---------- */
-.rail { position: sticky; top: 0; z-index: 10; color: #fff; background: var(--accent);
-  display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding: 10px 20px; }
+.rail { position: sticky; top: 0; z-index: 10; color: #fff; background: var(--accent); min-height: var(--rail-h);
+  display: grid; grid-template-columns: minmax(0, auto) 1fr auto; gap: 16px; align-items: center; padding: 10px 20px; }
 .rail.idle { background: #3a4558; }
 .rail.live { background: repeating-linear-gradient(135deg, var(--live-a) 0 14px, var(--live-b) 14px 28px); }
 .rail .who { display: flex; flex-direction: column; min-width: 0; }
@@ -50,121 +47,184 @@ a { color: var(--accent); }
 .rail.running .dot { box-shadow: 0 0 0 3px rgba(255,255,255,.3); }
 .rail .sub { font-size: 12px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rail .stats { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
-.rail .stat { display: flex; flex-direction: column; align-items: flex-start; }
-.rail .stat b { font-size: 18px; font-weight: 700; line-height: 1.1; }
+.rail .stats.stale { opacity: .55; }
+.rail .stat b { display: block; font-size: 18px; font-weight: 700; line-height: 1.1; }
 .rail .stat span { font-size: 11.5px; opacity: .85; }
 .rail .acts { display: flex; gap: 8px; }
 .rail button { border: 1px solid rgba(255,255,255,.7); background: transparent; color: #fff; padding: 7px 12px;
   border-radius: 6px; cursor: pointer; font-weight: 600; }
-.rail button:hover { background: rgba(255,255,255,.14); }
+.rail button:hover:not(:disabled) { background: rgba(255,255,255,.14); }
 .rail button.solid { background: #fff; color: var(--bad); border-color: #fff; }
-.rail button.solid:hover { background: #ffecea; }
-.rail button:disabled { opacity: .45; cursor: not-allowed; }
+.rail button:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ---------- tabs ---------- */
-nav.tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--rule); background: var(--panel); }
+nav.tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--rule); background: var(--panel);
+  position: sticky; top: var(--rail-h); z-index: 9; }
 nav.tabs button { border: 0; background: none; padding: 12px 14px 10px; cursor: pointer; color: var(--ink-2);
-  border-bottom: 3px solid transparent; font-weight: 600; }
+  border-bottom: 3px solid transparent; font-weight: 600; white-space: nowrap; }
 nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
-main { padding: 18px 20px 60px; max-width: 1500px; margin: 0 auto; }
-section[hidden] { display: none; }
+nav.tabs .spacer { flex: 1; }
+main { padding: 20px 20px 80px; max-width: 1480px; margin: 0 auto; }
+section[hidden] { display: none !important; }
 
-/* ---------- layout pieces ---------- */
-.cols { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-.cols.wide-left { grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr); }
+/* ---------- layout ---------- */
+.cols { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.cols.wide-left { grid-template-columns: minmax(0, 1.65fr) minmax(330px, 1fr); }
 .cols.list-detail { grid-template-columns: minmax(300px, .9fr) minmax(0, 2fr); }
 .cols > * { min-width: 0; }
-@media (max-width: 980px) { .cols, .cols.wide-left, .cols.list-detail { grid-template-columns: 1fr; }
-  .rail { grid-template-columns: 1fr; } .rail .stats { justify-content: flex-start; } }
-.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; }
-.panel + .panel { margin-top: 18px; }
+.sticky { position: sticky; top: calc(var(--rail-h) + 62px); }
+@media (max-width: 1000px) { .cols, .cols.wide-left, .cols.list-detail { grid-template-columns: 1fr; } .sticky { position: static; }
+  .rail { grid-template-columns: 1fr; } .rail .stats { justify-content: flex-start; } nav.tabs { position: static; } }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; }
+.panel + .panel { margin-top: 20px; }
 .cols > .panel + .panel { margin-top: 0; }
-.panel > h2, .panel > h3 { margin-bottom: 10px; }
 .head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
-.head h2, .head h3 { margin: 0; }
-.stack > * + * { margin-top: 12px; }
+.stack > * + * { margin-top: 14px; }
+.help { font-size: 12px; color: var(--ink-3); line-height: 1.4; }
+.lead { color: var(--ink-2); max-width: 70ch; margin: 2px 0 0; }
 
-/* ---------- form ---------- */
-.seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
-.seg button { border: 0; border-right: 1px solid var(--rule); background: var(--panel); padding: 10px 8px; cursor: pointer; text-align: left; }
-.seg button:last-child { border-right: 0; }
-.seg button b { display: block; font-size: 13.5px; }
-.seg button span { display: block; font-size: 12px; color: var(--ink-2); }
-.seg button[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 -3px 0 var(--accent); }
-.seg button[data-mode="live"][aria-pressed="true"] { background: var(--bad-soft); box-shadow: inset 0 -3px 0 var(--bad); }
-.seg button:disabled { opacity: .5; cursor: not-allowed; }
-@media (max-width: 640px) { .seg { grid-template-columns: 1fr 1fr; }
-  main { padding: 12px 12px 48px; } nav.tabs { padding: 0 8px; overflow-x: auto; }
-  .rail { gap: 8px; padding: 8px 12px; } .rail .sub, .rail .stat.opt { display: none; }
-  .rail .stats { gap: 14px; } .rail .stat b { font-size: 15px; } .rail .acts button { padding: 6px 9px; } }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 14px; }
-label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-2); }
-label.f > span { display: flex; justify-content: space-between; gap: 6px; }
-label.f.changed > span { color: var(--accent); font-weight: 600; }
+/* ---------- guided steps (a real sequence, so numbered) ---------- */
+.step { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 4px 14px; padding: 18px 0; border-top: 1px solid var(--rule-2); }
+.step:first-child { border-top: 0; padding-top: 2px; }
+.step .num { width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+  display: grid; place-items: center; font-weight: 700; font-size: 13.5px; }
+.step .body > * + * { margin-top: 12px; }
+
+/* choice cards (modes, strategies) */
+.choices { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.choice { text-align: left; border: 1px solid var(--rule); background: var(--panel); border-radius: 8px; padding: 11px 12px; cursor: pointer; }
+.choice b { display: block; font-size: 14px; }
+.choice span { display: block; font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+.choice:hover:not(:disabled) { border-color: var(--ink-3); }
+.choice[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.choice.danger[aria-pressed="true"] { border-color: var(--bad); background: var(--bad-soft); box-shadow: inset 0 0 0 1px var(--bad); }
+.choice:disabled { opacity: .5; cursor: not-allowed; }
+.presets { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chip { border: 1px solid var(--rule); background: var(--panel); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 13px; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- fields ---------- */
+.group + .group { margin-top: 18px; }
+.group > h3 { font-size: 13.5px; margin-bottom: 2px; }
+.group > .help { margin-bottom: 8px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px 16px; }
+.field { display: flex; flex-direction: column; gap: 3px; }
+.field .lab { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.field .code { font-family: var(--mono); font-size: 11px; color: var(--ink-3); font-weight: 400; }
+.field.changed .lab > span:first-child { color: var(--accent); }
+.field .unitwrap { display: flex; align-items: center; gap: 6px; }
+.field .unit { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.field.bool .unitwrap { min-height: 34px; }
+.field.bool label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 input[type=text], input[type=number], select, textarea { background: var(--panel); border: 1px solid var(--rule);
   border-radius: 6px; padding: 7px 9px; color: var(--ink); width: 100%; }
-textarea { resize: vertical; min-height: 120px; font-family: var(--mono); font-size: 12.5px; }
-label.chk { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; padding-top: 18px; }
-.help { font-size: 11.5px; color: var(--ink-3); line-height: 1.3; }
-details { border-top: 1px solid var(--rule-2); padding-top: 10px; }
-details summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
-.btn { border: 1px solid var(--rule); background: var(--panel); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; }
-.btn:hover { border-color: var(--ink-3); }
+input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); }
+textarea { resize: vertical; min-height: 130px; font-family: var(--mono); font-size: 12.5px; }
+.q { border: 1px solid var(--rule); background: var(--panel); color: var(--ink-2); width: 19px; height: 19px; border-radius: 50%;
+  font-size: 11px; font-weight: 700; line-height: 1; padding: 0; cursor: pointer; flex: none; display: inline-grid; place-items: center; }
+.q:hover { border-color: var(--accent); color: var(--accent); }
+details.more { margin-top: 18px; border-top: 1px solid var(--rule-2); padding-top: 12px; }
+details.more > summary { cursor: pointer; font-weight: 600; }
+details.more[open] > summary { margin-bottom: 12px; }
+
+/* ---------- buttons, notes ---------- */
+.btn { border: 1px solid var(--rule); background: var(--panel); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; text-decoration: none; color: var(--ink); display: inline-block; }
+.btn:hover:not(:disabled) { border-color: var(--ink-3); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
 .btn.armed { background: var(--bad); border-color: var(--bad); color: #fff; outline: 3px solid var(--bad-soft); }
+.btn.big { padding: 11px 18px; font-size: 15px; width: 100%; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .cmd { font-family: var(--mono); font-size: 12px; background: var(--paper); border: 1px solid var(--rule-2);
-  border-radius: 6px; padding: 8px 10px; overflow-x: auto; white-space: pre; color: var(--ink-2); }
-.note { border-left: 3px solid var(--warn); padding: 6px 10px; background: var(--paper); font-size: 13px; }
-.note.bad { border-left-color: var(--bad); }
+  border-radius: 6px; padding: 8px 10px; overflow-x: auto; white-space: pre; color: var(--ink-2); margin-top: 8px; }
+.note { border-left: 3px solid var(--warn); padding: 8px 12px; background: var(--warn-soft); font-size: 13px; border-radius: 0 6px 6px 0; }
+.summary { font-size: 14.5px; line-height: 1.55; }
+.summary ul { margin: 8px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 13px; }
+.welcome { display: flex; gap: 14px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+
+/* ---------- advice ---------- */
+.advice { list-style: none; margin: 0; padding: 0; }
+.advice li { padding: 9px 12px; border-radius: 6px; border-left: 3px solid; font-size: 13.5px; }
+.advice li + li { margin-top: 8px; }
+.advice li.good { border-color: var(--good); background: var(--good-soft); }
+.advice li.info { border-color: var(--accent); background: var(--accent-soft); }
+.advice li.warn { border-color: var(--warn); background: var(--warn-soft); }
+.advice li.bad { border-color: var(--bad); background: var(--bad-soft); }
+.advice li b { display: flex; gap: 6px; align-items: center; margin-bottom: 1px; }
 
 /* ---------- console / tables ---------- */
 pre.console { font-family: var(--mono); font-size: 12px; line-height: 1.4; background: var(--paper); border: 1px solid var(--rule-2);
-  border-radius: 6px; padding: 10px; margin: 0; height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  border-radius: 6px; padding: 10px; margin: 0; height: 300px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule-2); vertical-align: top; }
 th { color: var(--ink-2); font-weight: 600; font-size: 12px; }
+th .q { width: 16px; height: 16px; font-size: 10px; margin-left: 4px; vertical-align: -3px; }
 td.num, th.num { text-align: right; }
 tr.sel td { background: var(--accent-soft); }
 tbody tr.click { cursor: pointer; } tbody tr.click:hover td { background: var(--paper); }
 .tablewrap { overflow-x: auto; }
-.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-.kv div b { display: block; font-size: 17px; }
-.kv div span { font-size: 12px; color: var(--ink-2); }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.kv b { display: block; font-size: 17px; }
+.kv span { font-size: 12px; color: var(--ink-2); }
 
 /* ---------- charts ---------- */
 .chart { position: relative; }
 .chart svg { display: block; width: 100%; height: auto; }
 .chart .tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--rule);
   border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.08); white-space: nowrap; display: none; }
-.chart .tip b { font-weight: 650; }
 .legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-2); margin: 2px 0 4px; flex-wrap: wrap; }
 .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
-.empty { color: var(--ink-3); font-size: 13px; padding: 18px 0; }
+.empty { color: var(--ink-2); font-size: 13.5px; padding: 14px 0; }
+
+/* ---------- handbook ---------- */
+.hb { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 28px; align-items: start; }
+.hb nav { position: sticky; top: calc(var(--rail-h) + 62px); max-height: calc(100vh - 150px); overflow: auto; }
+.hb nav a { display: block; padding: 5px 10px; border-radius: 6px; color: var(--ink-2); text-decoration: none; font-size: 13.5px; }
+.hb nav a:hover { background: var(--panel); color: var(--ink); }
+.hb nav input { margin-bottom: 10px; }
+@media (max-width: 860px) { .hb { grid-template-columns: 1fr; } .hb nav { position: static; max-height: none; } }
+.doc { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 26px 30px; }
+.doc > *, .doc [data-slot] > * { max-width: 78ch; }
+.doc .tablewrap { max-width: none; }
+.doc h1 { font-size: 24px; margin: 0 0 10px; }
+.doc h2 { font-size: 19px; margin: 34px 0 10px; padding-top: 18px; border-top: 1px solid var(--rule-2); }
+.doc h3 { font-size: 15px; margin: 22px 0 6px; }
+.doc p, .doc li { line-height: 1.6; }
+.doc ul, .doc ol { padding-left: 22px; }
+.doc table { margin: 10px 0 16px; }
+.doc .param { padding: 12px 0; border-top: 1px solid var(--rule-2); }
+.doc .param h3 { margin: 0 0 4px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.doc .param p { margin: 4px 0; }
+.doc .gl h3 { margin-top: 16px; }
+.flash { animation: flash 1.6s ease-out; border-radius: 6px; }
+@keyframes flash { from { background: var(--warn-soft); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .flash { animation: none; outline: 2px solid var(--warn); } }
+.hidden-by-search { display: none !important; }
 
 /* ---------- report ---------- */
 .md h1 { font-size: 18px; margin: 4px 0 10px; } .md h2 { font-size: 15.5px; margin: 18px 0 8px; } .md h3 { font-size: 14px; margin: 14px 0 6px; }
-.md p, .md ul { margin: 6px 0; max-width: 80ch; } .md code { font-family: var(--mono); font-size: 12px; }
-.md table { margin: 6px 0 10px; }
+.md p, .md ul { margin: 6px 0; max-width: 80ch; }
 img.overview { width: 100%; border: 1px solid var(--rule-2); border-radius: 6px; margin-top: 10px; }
 .toast { position: fixed; right: 18px; bottom: 18px; background: var(--ink); color: var(--paper); padding: 10px 14px;
-  border-radius: 8px; font-size: 13px; max-width: 420px; display: none; z-index: 20; }
+  border-radius: 8px; font-size: 13px; max-width: 440px; display: none; z-index: 20; }
 .toast.err { background: var(--bad); color: #fff; }
+@media (max-width: 640px) { main { padding: 12px 12px 60px; } nav.tabs { padding: 0 6px; overflow-x: auto; }
+  .rail { gap: 8px; padding: 8px 12px; } .rail .sub, .rail .stat.opt { display: none; } .rail .stats { gap: 14px; }
+  .rail .stat b { font-size: 15px; } .rail .acts button { padding: 6px 9px; } .doc { padding: 18px; } .welcome { flex-direction: column; align-items: flex-start; } }
 </style>
 </head>
 <body>
 
 <header class="rail idle" id="rail" aria-live="polite">
   <div class="who">
-    <div class="mode"><span class="dot"></span><span id="railMode">No bot running</span></div>
-    <div class="sub" id="railSub">Start a run in the Run tab</div>
+    <div class="mode"><span class="dot"></span><span id="railMode">Nothing running</span></div>
+    <div class="sub" id="railSub">Start something in the Run tab</div>
   </div>
   <div class="stats" id="railStats"></div>
   <div class="acts">
-    <button id="btnPause" disabled>Pause trading</button>
-    <button id="btnStop" disabled title="Stops the loop; the exit rule you chose is applied">Stop</button>
+    <button id="btnPause" disabled title="Pull our quotes; hedging continues">Pause trading</button>
+    <button id="btnStop" disabled title="End the run; your 'When stopping' choice is applied">Stop</button>
     <button id="btnFlatStop" class="solid" disabled title="Close every position, then stop">Flatten and stop</button>
   </div>
 </header>
@@ -174,82 +234,76 @@ img.overview { width: 100%; border: 1px solid var(--rule-2); border-radius: 6px;
   <button role="tab" data-tab="monitor" aria-selected="false">Monitor</button>
   <button role="tab" data-tab="runs" aria-selected="false">Past runs</button>
   <button role="tab" data-tab="bench" aria-selected="false">Backtest</button>
+  <span class="spacer"></span>
+  <button role="tab" data-tab="handbook" aria-selected="false">Handbook</button>
 </nav>
 
 <main>
 <!-- =============================== RUN =============================== -->
 <section id="tab-run">
-  <div class="cols wide-left">
+  <div class="panel welcome" id="welcome">
     <div>
-      <div class="panel stack">
-        <div class="head"><h2>What do you want to do?</h2></div>
-        <div class="seg" id="modeSeg">
-          <button data-mode="observe"><b>Observe</b><span>Record the live market, no orders</span></button>
-          <button data-mode="live"><b>Trade live</b><span>Real exchange, real orders</span></button>
-          <button data-mode="sim"><b>Rehearse</b><span>Same pipeline on the simulator</span></button>
-          <button data-mode="flatten"><b>Flatten now</b><span>Cancel all, close all positions</span></button>
-        </div>
-        <div id="optibookNote" class="note" hidden></div>
+      <h2>New to this? Read the Handbook's first page.</h2>
+      <p class="lead">It explains the market, how the bot makes money and every setting, in plain words. Every <span class="q" aria-hidden="true">?</span> on this page opens the matching explanation.</p>
+    </div>
+    <div class="row"><button class="btn primary" data-jump="start">Open the Handbook</button><button class="btn" id="btnHideWelcome">Hide</button></div>
+  </div>
 
-        <div id="strategyBlock" class="stack">
-          <div class="grid">
-            <label class="f"><span>Strategy</span><select id="selStrategy"></select></label>
-            <label class="f" id="versionWrap"><span>Version</span><select id="selVersion"></select></label>
+  <div class="cols wide-left">
+    <div class="panel">
+      <div class="step">
+        <div class="num">1</div>
+        <div class="body">
+          <h2>What do you want to do?</h2>
+          <div class="choices" id="modeChoices">
+            <button class="choice" data-mode="observe"><b>Observe the market</b><span>Watch and record the real market. Sends no orders.</span></button>
+            <button class="choice danger" data-mode="live"><b>Trade live</b><span>Real orders on the real exchange.</span></button>
+            <button class="choice" data-mode="sim"><b>Rehearse</b><span>Practise on a simulated market. Nothing real happens.</span></button>
+            <button class="choice danger" data-mode="flatten"><b>Close everything now</b><span>Cancel all orders and close all positions.</span></button>
           </div>
-          <div class="help" id="strategyDoc"></div>
-          <div>
-            <h3 style="margin-bottom:8px">Parameters</h3>
-            <div class="grid" id="paramGrid"></div>
-          </div>
-          <details id="flagDetails">
-            <summary>Strategy flags for this version</summary>
-            <div class="help" style="margin-bottom:8px">Everything a version switched on. Change any of them for this run; blue labels differ from the version.</div>
-            <div class="grid" id="flagGrid"></div>
-          </details>
+          <div id="optibookNote" class="note" hidden></div>
         </div>
+      </div>
 
-        <div id="simBlock" class="stack">
-          <h3>Simulated market</h3>
-          <div class="grid">
-            <label class="f"><span>Market</span><select id="simScenario"></select></label>
-            <label class="f"><span>Rival teams</span><input type="number" id="simTeams" value="12" min="0" max="40"></label>
-            <label class="f"><span>Market seed</span><input type="number" id="simSeed" value="0" min="0"></label>
-            <label class="f"><span>Length (minutes)</span><input type="number" id="simMinutes" value="10" min="0.5" step="0.5"></label>
-            <label class="f"><span>Speed</span><select id="simSpeed">
-              <option value="1">Real time (practise live)</option><option value="5">5x</option>
-              <option value="20">20x</option><option value="0">As fast as possible</option></select></label>
+      <div class="step" id="stepStrategy">
+        <div class="num">2</div>
+        <div class="body">
+          <div class="head" style="margin:0"><h2>Choose a strategy</h2><button class="q" data-h="strategies" title="About the strategies">?</button></div>
+          <div class="presets"><span class="help">Quick start:</span><span id="presetChips"></span></div>
+          <div class="choices" id="strategyChoices"></div>
+          <div id="versionWrap" class="fields" style="grid-template-columns: minmax(0, 1fr)">
+            <div class="field">
+              <div class="lab"><span>Version</span><span class="code">version</span><button class="q" data-h="p-version">?</button></div>
+              <select id="selVersion" style="width:100%;max-width:520px"></select>
+            </div>
+            <div class="help" id="versionText" style="margin-top:-6px"></div>
           </div>
         </div>
+      </div>
 
-        <div id="runBlock" class="stack">
-          <h3>Run settings</h3>
-          <div class="grid">
-            <label class="f" id="pairsWrap"><span>Pairs (primary:dual)</span><input type="text" id="runPairs" placeholder="auto-detect, e.g. ASML:ASML_DUAL"></label>
-            <label class="f" id="liveMinutesWrap"><span>Stop after (minutes)</span><input type="number" id="runMinutes" placeholder="until you stop it" min="0" step="1"></label>
-            <label class="f"><span>Loop period (seconds)</span><input type="number" id="runPeriod" value="0.1" min="0.02" step="0.05"></label>
-            <label class="f" id="exitWrap"><span>When stopping</span><select id="runExit">
-              <option value="net">Close unhedged delta only</option>
-              <option value="all">Close every position</option>
-              <option value="none">Leave positions as they are</option></select></label>
-            <label class="f"><span>Record every N loops</span><input type="number" id="runRecord" value="1" min="1"></label>
-          </div>
+      <div class="step" id="stepSettings">
+        <div class="num" id="settingsNum">3</div>
+        <div class="body">
+          <div class="head" style="margin:0"><h2>Settings</h2><button class="btn" id="btnReset" title="Back to each setting's default">Reset to defaults</button></div>
+          <p class="lead" style="margin-top:0">Blue labels are values you changed. They are remembered for next time.</p>
+          <div id="essentials"></div>
+          <div id="simFields"></div>
+          <details class="more" id="advanced"><summary>Advanced settings</summary><div id="advancedBody"></div></details>
         </div>
       </div>
     </div>
 
-    <div>
+    <div class="sticky">
       <div class="panel stack">
-        <div class="head"><h2 id="startTitle">Start</h2></div>
-        <div class="help">Command that will run</div>
-        <div class="cmd" id="cmdPreview"></div>
-        <div class="row">
-          <button class="btn primary" id="btnStart">Start</button>
-          <span class="help" id="startHint"></span>
-        </div>
+        <div class="head" style="margin:0"><h2 id="startTitle">Start</h2></div>
+        <div class="summary" id="summary"></div>
+        <button class="btn big primary" id="btnStart">Start</button>
+        <div class="help" id="startHint"></div>
+        <details><summary class="help" style="cursor:pointer">Show command</summary><div class="cmd" id="cmdPreview"></div></details>
       </div>
-      <div class="panel">
+      <div class="panel" style="margin-top:20px">
         <div class="head"><h3>Output</h3><span class="help" id="consoleStatus"></span></div>
-        <pre class="console" id="runConsole" aria-live="off"></pre>
+        <pre class="console" id="runConsole" aria-live="off" style="height:240px"></pre>
       </div>
     </div>
   </div>
@@ -257,35 +311,40 @@ img.overview { width: 100%; border: 1px solid var(--rule-2); border-radius: 6px;
 
 <!-- =============================== MONITOR =============================== -->
 <section id="tab-monitor" hidden>
-  <div id="monEmpty" class="panel empty">Nothing is running. Start a run in the Run tab, or open a past run from Past runs.</div>
+  <div id="monEmpty" class="panel empty">Nothing is running. Start something in the Run tab, or open a past run from Past runs.</div>
   <div id="monBody" hidden>
     <div class="cols wide-left">
       <div>
         <div class="panel">
-          <div class="head"><h3>PnL</h3><span class="help" id="monRunName"></span></div>
+          <div class="head"><h3>PnL (profit and loss)</h3><span class="help" id="monRunName"></span></div>
           <div class="chart" id="chPnl"></div>
         </div>
         <div class="panel">
-          <div class="head"><h3>Positions</h3><span class="help">per instrument, lots</span></div>
+          <div class="head"><h3>Positions <button class="q" data-h="g-position">?</button></h3><span class="help">lots held per listing; the lines should mirror each other</span></div>
           <div class="chart" id="chPos"></div>
         </div>
         <div class="panel">
-          <div class="head"><h3>Prices and our fills</h3><span class="help">mid prices; ▲ our buys, ▼ our sells</span></div>
+          <div class="head"><h3>Prices and our trades</h3><span class="help">mid price of each listing; ▲ we bought, ▼ we sold</span></div>
           <div class="chart" id="chPx"></div>
         </div>
         <div class="panel">
           <div class="head"><h3>Market and our quotes</h3><span class="help" id="monMetricsAge"></span></div>
           <div class="tablewrap" id="monPairs"></div>
-          <div class="head" style="margin-top:14px"><h3>Where the money comes from</h3><span class="help">last 10 s window; edge and post-fill moves in ticks, + is good</span></div>
+          <div class="head" style="margin-top:18px"><h3>Where the money comes from <button class="q" data-h="tab-monitor">?</button></h3><span class="help">last 10 seconds; in ticks, green is good</span></div>
           <div class="tablewrap" id="monFills"></div>
         </div>
       </div>
       <div>
+        <div class="panel">
+          <div class="head"><h3>What to do now</h3><button class="q" data-h="playbook" title="The full playbook">?</button></div>
+          <ul class="advice" id="advice"></ul>
+        </div>
         <div class="panel stack" id="setPanel">
-          <div class="head"><h3>Live settings</h3><span class="help">applied by the bot within ~1 s</span></div>
+          <div class="head" style="margin:0"><h3>Change settings live</h3><span class="help">the bot applies them within ~1 s</span></div>
           <div class="row">
             <button class="btn" id="btnPause2">Pause trading</button>
             <button class="btn danger" id="btnFlatten2">Flatten positions</button>
+            <button class="q" data-h="bar">?</button>
           </div>
           <div id="setGrid"></div>
           <div class="row">
@@ -299,12 +358,12 @@ img.overview { width: 100%; border: 1px solid var(--rule-2); border-radius: 6px;
           <div class="kv" id="monHealth"></div>
         </div>
         <div class="panel">
-          <div class="head"><h3>Events</h3><span class="help">settings, pauses, errors</span></div>
-          <div class="tablewrap" id="monEvents" style="max-height:260px;overflow:auto"></div>
+          <div class="head"><h3>Events</h3><span class="help">settings changes, pauses, errors</span></div>
+          <div class="tablewrap" id="monEvents" style="max-height:240px;overflow:auto"></div>
         </div>
         <div class="panel stack">
-          <div class="head"><h3>Notes for this run</h3><button class="btn" id="btnSaveNotes">Save notes</button></div>
-          <textarea id="notes" placeholder="Paste the brief, leaderboard numbers, what you changed and why"></textarea>
+          <div class="head" style="margin:0"><h3>Notes for this run</h3><button class="btn" id="btnSaveNotes">Save notes</button></div>
+          <textarea id="notes" placeholder="The brief, leaderboard numbers, what you changed and why"></textarea>
         </div>
         <div class="panel">
           <div class="head"><h3>Console</h3></div>
@@ -322,7 +381,7 @@ img.overview { width: 100%; border: 1px solid var(--rule-2); border-radius: 6px;
       <div class="head"><h2>Past runs</h2><button class="btn" id="btnRefreshRuns">Refresh</button></div>
       <div class="tablewrap" id="runsTable"></div>
     </div>
-    <div class="panel" id="runDetail"><div class="empty">Pick a run to see its report, charts and logs.</div></div>
+    <div class="panel" id="runDetail"><div class="empty">Pick a run on the left to see its report and charts, or to download it.</div></div>
   </div>
 </section>
 
@@ -330,16 +389,16 @@ img.overview { width: 100%; border: 1px solid var(--rule-2); border-radius: 6px;
 <section id="tab-bench" hidden>
   <div class="cols wide-left">
     <div class="panel stack">
-      <div class="head"><h2>Backtest versions on held-out markets</h2></div>
-      <div class="help">Compare versions or single tweaks before using them live. Write each variant as <code>version</code> or
-        <code>version:flag=value,flag=value</code>, separated by spaces. Example: <code>v8 v10 v10:size=20 v10:min_profit=0.8</code></div>
-      <div class="grid">
-        <label class="f" style="grid-column: 1 / -1"><span>Variants</span><input type="text" id="bVariants" value="v8 v10"></label>
-        <label class="f"><span>Market</span><select id="bScenario"></select></label>
-        <label class="f"><span>Markets to test</span><input type="number" id="bSeeds" value="4" min="1" max="16"></label>
-        <label class="f"><span>Rival teams</span><input type="number" id="bTeams" value="12" min="0"></label>
-        <label class="f"><span>Our loop</span><select id="bEvery"><option value="1">0.1 s</option><option value="2" selected>0.2 s</option><option value="5">0.5 s</option></select></label>
-        <label class="f"><span>Exit cost</span><select id="bExit"><option value="net">Close unhedged delta</option><option value="all">Close everything</option><option value="">None</option></select></label>
+      <div class="head" style="margin:0"><h2>Try settings on practice markets</h2><button class="q" data-h="tab-backtest">?</button></div>
+      <p class="lead" style="margin:0">Compare versions or tweaks before using them for real. Separate variants with spaces. <code>v8</code> is a version,
+        <code>v10:size=20</code> is version 10 with quote size 20, <code>v8:min_profit=0.8,size=5</code> changes two settings.</p>
+      <div class="fields">
+        <div class="field" style="grid-column: 1 / -1"><div class="lab"><span>Variants to compare</span></div><input type="text" id="bVariants" value="v8 v10"></div>
+        <div class="field"><div class="lab"><span>Practice market</span><button class="q" data-h="markets">?</button></div><select id="bScenario"></select></div>
+        <div class="field"><div class="lab"><span>Number of markets</span></div><input type="number" id="bSeeds" value="4" min="1" max="16"><span class="help">More is more reliable but slower (~2 s each).</span></div>
+        <div class="field"><div class="lab"><span>Rival teams</span></div><input type="number" id="bTeams" value="12" min="0"></div>
+        <div class="field"><div class="lab"><span>Loop period</span><button class="q" data-h="p-period">?</button></div><select id="bEvery"><option value="1">0.1 s</option><option value="2" selected>0.2 s</option><option value="5">0.5 s</option></select></div>
+        <div class="field"><div class="lab"><span>Cost of closing at the end</span><button class="q" data-h="p-exit">?</button></div><select id="bExit"><option value="net">Close uncovered risk only</option><option value="all">Close everything</option><option value="">Ignore</option></select></div>
       </div>
       <div class="row"><button class="btn primary" id="btnBench">Run backtest</button><button class="btn" id="btnBenchStop" disabled>Stop</button>
         <span class="help" id="benchStatus"></span></div>
@@ -347,9 +406,19 @@ img.overview { width: 100%; border: 1px solid var(--rule-2); border-radius: 6px;
     <div class="panel">
       <div class="head"><h3>Results</h3></div>
       <div class="tablewrap" id="benchTable"></div>
-      <details style="margin-top:12px"><summary>Raw output</summary><pre class="console" id="benchOut" style="height:260px;white-space:pre;word-break:normal"></pre></details>
-      <div class="help" style="margin-top:8px">Rank is out of all teams (13 with 12 rivals). "vs best rival" is our PnL minus the best other team's. Each market takes ~2 s.</div>
+      <details style="margin-top:12px"><summary class="help" style="cursor:pointer">Raw output</summary><pre class="console" id="benchOut" style="height:220px;white-space:pre;word-break:normal"></pre></details>
     </div>
+  </div>
+</section>
+
+<!-- =============================== HANDBOOK =============================== -->
+<section id="tab-handbook" hidden>
+  <div class="hb">
+    <nav aria-label="Handbook contents">
+      <input type="text" id="hbSearch" placeholder="Search terms and settings">
+      <div id="hbToc"></div>
+    </nav>
+    <article class="doc" id="hbDoc"><div class="empty">Loading the handbook...</div></article>
   </div>
 </section>
 </main>
@@ -363,11 +432,13 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "
 const fmt = (v, d = 2) => v == null || Number.isNaN(v) ? "–" : (typeof v === "number" ? v.toFixed(d) : String(v));
 const signed = (v, d = 2) => v == null ? "–" : (v > 0 ? "+" : "") + v.toFixed(d);
 const cls = v => v == null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "";
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 async function api(path, body) {
   const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
-  const r = await fetch(path.replace(/^\//, ""), opt);   // relative: works behind a proxy prefix too
-  const j = r.headers.get("content-type")?.includes("json") ? await r.json() : await r.text();
+  const r = await fetch(path.replace(/^\//, ""), opt);   // relative paths: also works behind a proxy prefix
+  const ct = r.headers.get("content-type") || "";
+  const j = ct.includes("json") ? await r.json() : await r.text();
   if (!r.ok) throw new Error(j.error || j || r.statusText);
   return j;
 }
@@ -378,107 +449,221 @@ function toast(msg, err = false) {
 }
 function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem("cp." + k)); localStorage.setItem("cp." + k, JSON.stringify(v)); } catch { return null; } }
 
-/* ------------------------------------------------------------------ state */
-const S = { meta: null, mode: store("mode") || "sim", live: null, viewDir: null, settingsDraft: {}, armed: false, tab: "run" };
+/* ------------------------------------------------------------------ copy */
+const STRATS = {
+  cross_arb: { label: "Safe start", text: "Only grabs clearly mispriced orders and hedges at once. Few trades, low risk. Use it first to check everything works." },
+  evolved: { label: "Main strategy", text: "Keeps buy and sell offers on the thin listing and hedges every trade on the busy one. Pick a version below." },
+  quote_hedge: { label: "Original, for comparison", text: "The first version of the main strategy, kept unchanged. Mostly useful in backtests." },
+};
+const VERSION_TEXT = {
+  v0: "The original, unchanged.", v1: "Patient hedging inside the spread.", v2: "Fewer order changes; arbitrage on the thin side only.",
+  v3: "Prices from fair value and real hedge cost.", v4: "Leans quotes only near the position limit.", v5: "Test only (simulator quirk). Use v6 or later.",
+  v6: "Tries the best price for hedges where it works.", v7: "Same as v6.", v8: "Safest all-round. Best if the busy spread is 1 tick.",
+  v9: "Same as v8.", v10: "Bigger quotes (15). Best if the busy spread is 2 ticks or more.",
+};
+const PRESETS = [
+  { name: "Safe start", strategy: "cross_arb", params: {}, why: "cross_arb with defaults" },
+  { name: "Recommended", strategy: "evolved", version: "v8", params: {}, why: "evolved v8" },
+  { name: "Wide spread", strategy: "evolved", version: "v10", params: {}, why: "evolved v10, quote size 15" },
+  { name: "Cautious", strategy: "evolved", version: "v8", params: { size: 5, min_profit: 0.8 }, why: "evolved v8, small quotes, more profit per trade" },
+];
+const ESSENTIAL = {
+  cross_arb: ["position_limit", "min_edge", "max_ops_per_sec"],
+  quote_hedge: ["position_limit", "size", "edge", "take_min_edge", "max_ops_per_sec"],
+  evolved: ["position_limit", "size", "min_profit", "max_unhedged", "take_min_edge", "max_ops_per_sec"],
+};
+const MODE_TEXT = {
+  observe: { title: "Observe the market", btn: "Start observing", done: "Observing started" },
+  live: { title: "Trade live", btn: "Start live trading", done: "Live trading started" },
+  sim: { title: "Rehearse", btn: "Start rehearsal", done: "Rehearsal started" },
+  flatten: { title: "Close everything now", btn: "Close all positions", done: "Closing all positions" },
+};
+const SCEN_TEXT = {
+  crowded: "standard practice market", crowded_tight: "1-tick busy spread", crowded_sticky: "exchange traders keep their place",
+  crowded_clones: "half the rivals copy us", basic: "simple, no rivals", competitive: "2 rivals", hard: "two companies and a halt",
+};
 
-/* ------------------------------------------------------------------ tabs */
+/* ------------------------------------------------------------------ state */
+const S = { meta: null, P: null, mode: store("mode") || "sim", live: null, view: null, settingsDraft: {}, armed: false, tab: "run" };
+const pinfo = n => { const e = S.P?.params?.[n]; return e?.alias_of ? { ...S.P.params[e.alias_of], name: e.alias_of } : (e ? { ...e, name: n } : { label: n, name: n, short: "" }); };
+
+/* ------------------------------------------------------------------ tabs + help jumps */
 function showTab(name) {
   S.tab = name;
   $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
   $$("main > section").forEach(s => s.hidden = s.id !== "tab-" + name);
   if (name === "runs") loadRuns();
   if (name === "monitor") renderMonitor();
+  if (name === "handbook") renderHandbook();
   store("tab", name);
 }
 $$("nav.tabs button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+async function jump(id) {
+  showTab("handbook");
+  await renderHandbook();
+  $("#hbSearch").value = ""; filterHandbook("");
+  requestAnimationFrame(() => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 130 });
+    const target = el.closest(".param, .gl") || el;
+    target.classList.remove("flash"); void target.offsetWidth; target.classList.add("flash");
+  });
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-h],[data-jump]");
+  if (t) { e.preventDefault(); jump(t.dataset.h || t.dataset.jump); return; }
+  const a = e.target.closest("#hbDoc a[href^='#'], #hbToc a[href^='#']");
+  if (a) { e.preventDefault(); jump(a.getAttribute("href").slice(1)); }
+});
 
-/* ------------------------------------------------------------------ run form */
-function inputFor(name, value, typeHint, help, changed, pre = "p_") {
-  const t = typeHint || (typeof value === "boolean" ? "bool" : typeof value === "number" ? "number" : value === null ? "number" : "text");
-  const id = pre + name;
-  if (t === "bool") {
-    return `<label class="f chk ${changed ? "changed" : ""}" title="${esc(help)}"><input type="checkbox" id="${id}" data-name="${esc(name)}" data-type="bool" ${value ? "checked" : ""}><span>${esc(name)}</span></label>`;
-  }
-  const isNum = t === "number" || t === "int" || t === "float";
-  const step = t === "int" || (Number.isInteger(value) && t !== "float") ? "1" : "any";
-  return `<label class="f ${changed ? "changed" : ""}"><span>${esc(name)}</span>
-    <input type="${isNum ? "number" : "text"}" ${isNum ? `step="${step}"` : ""} id="${id}" data-name="${esc(name)}" data-type="${isNum ? "number" : "text"}" value="${value ?? ""}" placeholder="${value === null ? "auto" : ""}">
-    ${help ? `<span class="help">${esc(help)}</span>` : ""}</label>`;
+/* ------------------------------------------------------------------ fields */
+function typeOf(v, hint) {
+  if (hint === "bool" || typeof v === "boolean") return "bool";
+  if (hint === "str" || (typeof v === "string" && isNaN(+v))) return "text";
+  return "number";
+}
+function field(name, value, { hint, changed, prefix = "p_", disabled = false, showShort = true } = {}) {
+  const p = pinfo(name), t = typeOf(value, hint), id = prefix + name;
+  const q = `<button class="q" data-h="p-${esc(p.name)}" title="What is ${esc(p.label)}?">?</button>`;
+  const lab = `<div class="lab"><span>${esc(p.label)}</span><span class="code">${esc(name)}</span>${q}</div>`;
+  const short = showShort && p.short ? `<span class="help">${esc(p.short)}</span>` : "";
+  if (t === "bool") return `<div class="field bool ${changed ? "changed" : ""}">${lab}<div class="unitwrap"><label><input type="checkbox" id="${id}" data-name="${esc(name)}" data-type="bool" ${value ? "checked" : ""} ${disabled ? "disabled" : ""}><span class="onoff">${value ? "On" : "Off"}</span></label></div>${short}</div>`;
+  const step = t === "number" && Number.isInteger(value) ? "1" : "any";
+  return `<div class="field ${changed ? "changed" : ""}">${lab}<div class="unitwrap"><input type="${t === "number" ? "number" : "text"}" ${t === "number" ? `step="${step}"` : ""} id="${id}"
+    data-name="${esc(name)}" data-type="${t}" value="${value ?? ""}" placeholder="${value == null ? "automatic" : ""}" ${disabled ? "disabled" : ""}>${p.unit ? `<span class="unit">${esc(p.unit)}</span>` : ""}</div>${short}</div>`;
 }
 function readInput(el) {
-  if (el.dataset.type === "bool") return el.checked;
+  if (el.dataset.type === "bool") { const s = el.parentElement.querySelector(".onoff"); if (s) s.textContent = el.checked ? "On" : "Off"; return el.checked; }
   if (el.dataset.type === "number") return el.value === "" ? null : Number(el.value);
   return el.value;
 }
+function groupBlocks(names, render) {
+  const byGroup = {};
+  names.forEach(n => (byGroup[pinfo(n).group || "run"] ||= []).push(n));
+  return S.P.groups.filter(g => byGroup[g.id]).map(g =>
+    `<div class="group"><h3>${esc(g.label)}</h3><div class="help">${esc(g.intro)}</div><div class="fields">${byGroup[g.id].map(render).join("")}</div></div>`).join("");
+}
 
-function renderStrategyForm() {
-  const sch = S.meta.strategies;
-  const strat = $("#selStrategy").value;
-  const def = sch[strat];
+/* ------------------------------------------------------------------ run form */
+function strategyDefaults(strat) {
+  const def = {};
+  S.meta.strategies[strat].params.forEach(p => { if (p.name !== "version") def[p.name] = p.default; });
+  return def;
+}
+function currentVersion() { return $("#selVersion").value; }
+function versionFlags(ver) {
+  const ev = S.meta.strategies.evolved, base = ev.versions[ver] || {}, out = {};
+  Object.keys(ev.flag_types).forEach(n => out[n] = n in base ? base[n] : (ev.flag_types[n] === "bool" ? false : null));
+  return out;
+}
+function renderRunForm() {
+  const strat = S.strategy, m = S.mode;
+  $$("#modeChoices .choice").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === m));
+  $$("#strategyChoices .choice").forEach(b => b.setAttribute("aria-pressed", b.dataset.s === strat));
+  const trades = m === "live" || m === "sim";
+  $("#stepStrategy").hidden = !trades;
+  $("#stepSettings").hidden = m === "flatten";
+  $("#settingsNum").textContent = trades ? "3" : "2";
   $("#versionWrap").hidden = strat !== "evolved";
-  $("#flagDetails").hidden = strat !== "evolved";
-  $("#strategyDoc").textContent = (def.doc || "").split("\n").slice(0, 3).join(" ");
-  const saved = store("params." + strat) || {};
-  $("#paramGrid").innerHTML = def.params.filter(p => p.name !== "version").map(p => {
-    const v = saved[p.name] !== undefined ? saved[p.name] : p.default;
-    return inputFor(p.name, v, null, p.help, saved[p.name] !== undefined && saved[p.name] !== p.default);
-  }).join("");
-  if (strat === "evolved") renderFlags();
-  $$("#paramGrid input").forEach(el => el.oninput = el.onchange = () => {
-    const cur = store("params." + strat) || {}; const p = def.params.find(x => x.name === el.dataset.name);
-    const v = readInput(el); if (v === p.default || v === null) delete cur[el.dataset.name]; else cur[el.dataset.name] = v;
-    store("params." + strat, cur); el.closest("label").classList.toggle("changed", cur[el.dataset.name] !== undefined); updateCmd();
+  $("#versionText").innerHTML = `Not sure? <a href="#" data-jump="strategies">Compare all versions in the Handbook</a>.`;
+
+  const saved = store("params." + strat) || {}, defs = strategyDefaults(strat);
+  const flags = strat === "evolved" ? versionFlags(currentVersion()) : {}, fsaved = strat === "evolved" ? (store("flags." + currentVersion()) || {}) : {};
+  const val = n => n in saved ? saved[n] : n in fsaved ? fsaved[n] : n in defs ? defs[n] : flags[n];
+  const changed = n => n in saved || n in fsaved;
+  const all = trades ? [...Object.keys(defs), ...Object.keys(flags)] : [];
+  const ess = trades ? ESSENTIAL[strat].filter(n => all.includes(n)) : [];
+  const adv = all.filter(n => !ess.includes(n));
+  const render = n => field(n, val(n), { hint: S.meta.strategies.evolved.flag_types[n], changed: changed(n) });
+
+  const runVal = k => store("run." + k);
+  const runField = (k, input, opts = {}) => {
+    const p = pinfo(k), on = opts.changed ?? (runVal(k) != null && runVal(k) !== "");
+    return `<div class="field ${on ? "changed" : ""}"><div class="lab"><span>${esc(p.label)}</span><span class="code">${esc(k)}</span><button class="q" data-h="p-${k}">?</button></div>
+      <div class="unitwrap">${input}${p.unit && !opts.noUnit ? `<span class="unit">${esc(p.unit)}</span>` : ""}</div><span class="help">${esc(p.short)}</span></div>`;
+  };
+  const sel = (id, opts, cur) => `<select id="${id}" data-run="${id.slice(4)}">${opts.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  const num = (id, cur, attrs = "") => `<input type="number" id="${id}" data-run="${id.slice(4)}" value="${cur ?? ""}" ${attrs}>`;
+  const runOpts = [], runAdv = [];
+  if (m !== "flatten") runOpts.push(runField("period", num("run_period", runVal("period") ?? 0.1, 'min="0.02" step="0.05"')));
+  if (trades) runOpts.push(runField("exit", sel("run_exit", [["net", "Close uncovered risk only"], ["all", "Close every position"], ["none", "Leave positions"]], runVal("exit") || "net"), { noUnit: true }));
+  if (m === "live" || m === "observe") runOpts.push(runField("minutes", num("run_minutes", runVal("minutes"), 'min="0" step="1" placeholder="until you press Stop"')));
+  if (trades) runAdv.push(runField("pairs", `<input type="text" id="run_pairs" data-run="pairs" value="${esc(runVal("pairs") || "")}" placeholder="found automatically">`, { noUnit: true }));
+  if (m !== "flatten") runAdv.push(runField("record_every", num("run_record_every", runVal("record_every") ?? 1, 'min="1"')));
+
+  $("#essentials").innerHTML = (ess.length ? groupBlocks(ess, render) : "") +
+    (runOpts.length ? `<div class="group"><h3>This run</h3><div class="help">How it starts and ends.</div><div class="fields">${runOpts.join("")}</div></div>` : "");
+  if (m === "sim") {
+    const sv = k => store("sim." + k);
+    $("#simFields").innerHTML = `<div class="group" style="margin-top:18px"><h3>Practice market</h3><div class="help">${esc(S.P.groups.find(g => g.id === "sim").intro)}</div><div class="fields">
+      ${runField("scenario", `<select id="sim_scenario" data-sim="scenario">${S.meta.scenarios.map(s => `<option value="${s}" ${(sv("scenario") || "crowded") === s ? "selected" : ""}>${s}: ${esc(SCEN_TEXT[s] || "")}</option>`).join("")}</select>`, { noUnit: true, changed: false })}
+      ${runField("teams", `<input type="number" id="sim_teams" data-sim="teams" value="${sv("teams") ?? 12}" min="0" max="40">`, { changed: false })}
+      ${runField("speed", `<select id="sim_speed" data-sim="speed">${[["1", "Real time"], ["5", "5x"], ["20", "20x"], ["0", "As fast as possible"]].map(([v, l]) => `<option value="${v}" ${String(sv("speed") ?? 1) === v ? "selected" : ""}>${l}</option>`).join("")}</select>`, { noUnit: true, changed: false })}
+      ${runField("minutes", `<input type="number" id="sim_minutes" data-sim="minutes" value="${sv("minutes") ?? 10}" min="0.5" step="0.5">`, { changed: false })}
+      ${runField("seed", `<input type="number" id="sim_seed" data-sim="seed" value="${sv("seed") ?? 0}" min="0">`, { noUnit: true, changed: false })}
+    </div></div>`;
+  } else $("#simFields").innerHTML = "";
+  $("#advanced").hidden = !(adv.length || runAdv.length);
+  $("#advancedBody").innerHTML = (runAdv.length ? `<div class="group"><h3>This run</h3><div class="fields">${runAdv.join("")}</div></div>` : "") + (adv.length ? groupBlocks(adv, render) : "");
+
+  $$("#stepSettings input[data-name]").forEach(el => el.onchange = el.oninput = () => {
+    const n = el.dataset.name, v = readInput(el), isFlag = strat === "evolved" && n in flags && !(n in defs);
+    const key = isFlag ? "flags." + currentVersion() : "params." + strat, cur = store(key) || {};
+    const base = isFlag ? flags[n] : defs[n];
+    if (v === base || (v === null && base == null)) delete cur[n]; else cur[n] = v;
+    store(key, cur); el.closest(".field").classList.toggle("changed", n in cur); updateStart();
   });
-  updateCmd();
+  $$("#stepSettings [data-run]").forEach(el => el.onchange = el.oninput = () => { store("run." + el.dataset.run, el.value === "" ? null : el.value); el.closest(".field").classList.toggle("changed", el.value !== ""); updateStart(); });
+  $$("#stepSettings [data-sim]").forEach(el => el.onchange = el.oninput = () => { store("sim." + el.dataset.sim, el.value); updateStart(); });
+  updateStart();
 }
-function renderFlags() {
-  const ev = S.meta.strategies.evolved, ver = $("#selVersion").value;
-  const base = ev.versions[ver] || {}, over = store("flags." + ver) || {};
-  const names = Object.keys(ev.flag_types).sort();
-  $("#flagGrid").innerHTML = names.map(n => {
-    const has = n in base, v = n in over ? over[n] : (has ? base[n] : (ev.flag_types[n] === "bool" ? false : null));
-    return inputFor(n, v, ev.flag_types[n], ev.flag_help[n], n in over, "f_");
-  }).join("");
-  $$("#flagGrid input").forEach(el => el.oninput = el.onchange = () => {
-    const cur = store("flags." + ver) || {}, n = el.dataset.name, v = readInput(el);
-    const baseV = n in base ? base[n] : (ev.flag_types[n] === "bool" ? false : null);
-    if (v === baseV) delete cur[n]; else cur[n] = v;
-    store("flags." + ver, cur); el.closest("label").classList.toggle("changed", n in cur); updateCmd();
-  });
+function setMode(m) { S.mode = m; store("mode", m); S.armed = false; renderRunForm(); }
+$$("#modeChoices .choice").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+$("#selVersion").onchange = () => { store("version", currentVersion()); renderRunForm(); };
+$("#btnReset").onclick = () => {
+  store("params." + S.strategy, {}); if (S.strategy === "evolved") store("flags." + currentVersion(), {});
+  ["period", "exit", "minutes", "pairs", "record_every"].forEach(k => store("run." + k, null));
+  renderRunForm(); toast("Settings reset to defaults");
+};
+function applyPreset(p) {
+  S.strategy = p.strategy; store("strategy", p.strategy);
+  if (p.version) { $("#selVersion").value = p.version; store("version", p.version); store("flags." + p.version, {}); }
+  store("params." + p.strategy, { ...p.params });
+  renderRunForm();
+  toast(`Preset "${p.name}": ${p.why}`);
 }
-function setMode(m) {
-  S.mode = m; store("mode", m); S.armed = false;
-  $$("#modeSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === m));
-  $("#strategyBlock").hidden = m === "observe" || m === "flatten";
-  $("#simBlock").hidden = m !== "sim";
-  $("#runBlock").hidden = m === "flatten";
-  $("#pairsWrap").hidden = m === "observe";
-  $("#exitWrap").hidden = m === "observe";
-  $("#liveMinutesWrap").hidden = m === "sim";
-  updateCmd();
-}
-$$("#modeSeg button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
 
 function buildRequest() {
   const m = S.mode, req = { mode: m === "observe" ? "observe" : m === "flatten" ? "flatten" : "strategy" };
   if (req.mode === "strategy") {
-    req.strategy = $("#selStrategy").value;
+    req.strategy = S.strategy;
     req.params = { ...(store("params." + req.strategy) || {}) };
-    if (req.strategy === "evolved") { req.version = $("#selVersion").value; Object.assign(req.params, store("flags." + req.version) || {}); }
-    req.exit = $("#runExit").value;
-    if ($("#runPairs").value.trim()) req.pairs = $("#runPairs").value.trim();
+    if (req.strategy === "evolved") { req.version = currentVersion(); Object.assign(req.params, store("flags." + req.version) || {}); }
+    req.exit = store("run.exit") || "net";
+    if (store("run.pairs")) req.pairs = store("run.pairs");
   }
-  if (m === "sim") Object.assign(req, { sim: true, scenario: $("#simScenario").value, teams: +$("#simTeams").value,
-    seed: +$("#simSeed").value, minutes: +$("#simMinutes").value, speed: +$("#simSpeed").value });
-  else if (m !== "flatten" && $("#runMinutes").value) req.minutes = +$("#runMinutes").value;
-  if (m !== "flatten") { req.period = +$("#runPeriod").value; req.record_every = +$("#runRecord").value; }
+  if (m === "sim") Object.assign(req, { sim: true, scenario: store("sim.scenario") || "crowded", teams: +(store("sim.teams") ?? 12),
+    seed: +(store("sim.seed") ?? 0), minutes: +(store("sim.minutes") ?? 10), speed: +(store("sim.speed") ?? 1) });
+  else if (m !== "flatten" && store("run.minutes")) req.minutes = +store("run.minutes");
+  if (m !== "flatten") { req.period = +(store("run.period") ?? 0.1); req.record_every = +(store("run.record_every") ?? 1); }
   return req;
 }
-function updateCmd() {
+function summaryText(r) {
+  const m = S.mode, strat = r.strategy ? `<b>${esc(r.strategy)}${r.version ? " " + esc(r.version) : ""}</b>` : "";
+  const exitTxt = { net: "close only uncovered risk", all: "close every position", none: "leave positions as they are" }[r.exit];
+  let s;
+  if (m === "observe") s = `Watch and record the real market${r.minutes ? ` for ${r.minutes} minutes` : " until you press Stop"}. No orders are sent.`;
+  else if (m === "flatten") s = `Cancel every order and close every position on the real exchange, at current market prices.`;
+  else if (m === "live") s = `Trade on the <b>real exchange</b> with ${strat}${r.minutes ? ` for ${r.minutes} minutes` : " until you press Stop"}. When stopped: ${exitTxt}.`;
+  else s = `Practise with ${strat} on the simulated <b>${esc(r.scenario)}</b> market (${esc(SCEN_TEXT[r.scenario] || "")}), ${r.teams} rival teams, ${r.speed ? (r.speed === 1 ? "in real time" : r.speed + "x speed") : "as fast as possible"}, for ${r.minutes} minutes. Nothing real happens.`;
+  const ch = Object.entries(r.params || {}).filter(([, v]) => v !== null && v !== "").map(([k, v]) => `${esc(pinfo(k).label)}: ${esc(v)}`);
+  return s + (ch.length ? `<ul>${ch.map(c => `<li>Changed: ${c}</li>`).join("")}</ul>` : "");
+}
+function updateStart() {
   if (!S.meta) return;
   const r = buildRequest(), a = ["python run_live.py"];
-  if (r.mode === "flatten") a.push("--flatten");
-  else if (r.mode === "observe") a.push("--observe");
+  if (r.mode === "flatten") a.push("--flatten"); else if (r.mode === "observe") a.push("--observe");
   else { a.push("--strategy " + r.strategy); for (const [k, v] of Object.entries({ ...r.params, ...(r.version ? { version: r.version } : {}) })) if (v !== null && v !== "") a.push(`-p ${k}=${v}`); }
   if (r.sim) a.push(`--sim ${r.scenario} --teams ${r.teams} --seed ${r.seed} --speed ${r.speed} --minutes ${r.minutes}`);
   else if (r.minutes) a.push("--minutes " + r.minutes);
@@ -487,62 +672,57 @@ function updateCmd() {
   if (r.exit) a.push("--exit " + r.exit);
   if (r.record_every > 1) a.push("--record-every " + r.record_every);
   $("#cmdPreview").textContent = a.join(" \\\n    ");
-  const labels = { observe: "Start observing", live: "Start live trading", sim: "Start rehearsal", flatten: "Flatten all positions" };
-  const btn = $("#btnStart"); btn.textContent = S.armed ? "Click again to confirm" : labels[S.mode];
-  btn.className = "btn " + (S.armed ? "armed" : (S.mode === "live" || S.mode === "flatten") ? "danger" : "primary");
-  $("#startTitle").textContent = labels[S.mode];
-  const running = S.live?.job?.running;
-  const needsOptibook = (S.mode === "live" || S.mode === "observe" || S.mode === "flatten") && !S.meta.optibook;
-  btn.disabled = !!running || needsOptibook;
-  $("#startHint").textContent = running ? "A run is active. Stop it first." : needsOptibook ? "Needs the Optibook client on this machine." :
-    (S.mode === "live" || S.mode === "flatten") ? "Asks you to confirm." : "";
+  $("#summary").innerHTML = summaryText(r);
+  const T = MODE_TEXT[S.mode], btn = $("#btnStart");
+  $("#startTitle").textContent = T.title;
+  btn.textContent = S.armed ? "Click again to confirm" : T.btn;
+  btn.className = "btn big " + (S.armed ? "armed" : (S.mode === "live" || S.mode === "flatten") ? "danger" : "primary");
+  const running = S.live?.job?.running, needsOB = S.mode !== "sim" && !S.meta.optibook;
+  btn.disabled = !!running || needsOB;
+  $("#startHint").textContent = running ? "Something is already running. Stop it first (top bar)." :
+    needsOB ? "Needs the Optibook client, which is only on the hackathon machines. Rehearse works here." :
+    (S.mode === "live" || S.mode === "flatten") ? "You will be asked to click twice, so it can't happen by accident." : "";
 }
-["#selVersion", "#simScenario", "#simTeams", "#simSeed", "#simMinutes", "#simSpeed", "#runPairs", "#runMinutes", "#runPeriod", "#runExit", "#runRecord"]
-  .forEach(s => { $(s).addEventListener("input", updateCmd); $(s).addEventListener("change", () => { if (s === "#selVersion") { store("version", $(s).value); renderFlags(); } updateCmd(); }); });
-$("#selStrategy").onchange = () => { store("strategy", $("#selStrategy").value); renderStrategyForm(); };
-
 $("#btnStart").onclick = async () => {
-  if ((S.mode === "live" || S.mode === "flatten") && !S.armed) { S.armed = true; updateCmd(); setTimeout(() => { S.armed = false; updateCmd(); }, 4000); return; }
+  if ((S.mode === "live" || S.mode === "flatten") && !S.armed) { S.armed = true; updateStart(); setTimeout(() => { S.armed = false; updateStart(); }, 4000); return; }
   S.armed = false;
   try {
-    const r = await api("/api/start", buildRequest());
-    toast("Started: " + r.cmd.split(" ").slice(0, 3).join(" "));
-    S.viewDir = null; setTimeout(poll, 400);
+    await api("/api/start", buildRequest());
+    toast(MODE_TEXT[S.mode].done);
+    S.view = null; setTimeout(poll, 400);
     if (S.mode !== "flatten") setTimeout(() => showTab("monitor"), 1200);
   } catch (e) { toast(e.message, true); }
-  updateCmd();
+  updateStart();
 };
+$("#btnHideWelcome").onclick = () => { $("#welcome").hidden = true; store("hideWelcome", true); };
 
 /* ------------------------------------------------------------------ rail + controls */
-async function stopRun(force = false) { try { await api("/api/stop", { force }); toast(force ? "Killed" : "Stopping: applying your exit rule"); } catch (e) { toast(e.message, true); } }
-async function setSetting(changes) {
-  try { await api("/api/settings", { changes, dir: S.live?.run_dir }); } catch (e) { toast(e.message, true); throw e; }
-}
+async function stopRun() { try { await api("/api/stop", {}); toast("Stopping. Your 'When stopping' choice is applied."); } catch (e) { toast(e.message, true); } }
+async function setSetting(changes) { try { await api("/api/settings", { changes, dir: S.live?.run_dir }); } catch (e) { toast(e.message, true); throw e; } }
 async function togglePause() {
   const paused = !!S.live?.settings?.pause;
-  try { await setSetting({ pause: !paused }); toast(paused ? "Resumed trading" : "Paused: quotes pulled, hedging continues"); poll(); } catch {}
+  try { await setSetting({ pause: !paused }); toast(paused ? "Trading resumed" : "Trading paused: quotes pulled, hedging continues"); poll(); } catch {}
 }
-async function flatten(thenStop) {
-  if (!confirmArm(thenStop ? "flatstop" : "flat")) return;
+const arms = {};
+function confirmArm(btn) {
+  const k = btn.id;
+  if (arms[k]) { clearTimeout(arms[k]); arms[k] = null; btn.textContent = btn.dataset.label; return true; }
+  btn.dataset.label = btn.dataset.label || btn.textContent; btn.textContent = "Click again to confirm";
+  arms[k] = setTimeout(() => { arms[k] = null; btn.textContent = btn.dataset.label; }, 4000);
+  return false;
+}
+async function flatten(btn, thenStop) {
+  if (!confirmArm(btn)) return;
   try {
-    await setSetting({ flatten: true });
-    toast("Flattening positions");
-    if (thenStop) setTimeout(() => stopRun(false), 2000);
+    await setSetting({ flatten: true }); toast("Flattening: closing every position");
+    if (thenStop) setTimeout(stopRun, 2000);
     setTimeout(() => setSetting({ flatten: false }).catch(() => {}), 2500);
   } catch {}
 }
-const arms = {};
-function confirmArm(key) {
-  const btn = key === "flatstop" ? $("#btnFlatStop") : $("#btnFlatten2");
-  if (arms[key]) { clearTimeout(arms[key]); arms[key] = null; btn.textContent = btn.dataset.label; return true; }
-  btn.dataset.label = btn.dataset.label || btn.textContent; btn.textContent = "Click again to confirm";
-  arms[key] = setTimeout(() => { arms[key] = null; btn.textContent = btn.dataset.label; }, 4000);
-  return false;
-}
 $("#btnPause").onclick = togglePause; $("#btnPause2").onclick = togglePause;
-$("#btnStop").onclick = () => stopRun(false);
-$("#btnFlatStop").onclick = () => flatten(true);
-$("#btnFlatten2").onclick = () => flatten(false);
+$("#btnStop").onclick = stopRun;
+$("#btnFlatStop").onclick = e => flatten(e.currentTarget, true);
+$("#btnFlatten2").onclick = e => flatten(e.currentTarget, false);
 
 function renderRail() {
   const L = S.live || {}, job = L.job, rail = $("#rail");
@@ -550,25 +730,26 @@ function renderRail() {
   const isLive = running && info.mode === "strategy" && !info.sim;
   const hasSettings = running && !!L.settings;
   rail.className = "rail " + (!running ? "idle" : isLive ? "live running" : "running");
-  let mode = "No bot running", sub = job ? `Last run ${job.returncode === 0 ? "finished" : "ended (code " + job.returncode + ")"}: ${job.run_dir || ""}` : "Start a run in the Run tab";
+  let mode = "Nothing running", sub = "Start something in the Run tab";
+  if (job && !running) sub = `Last run ${job.returncode === 0 ? "finished" : "ended with an error"}. The numbers are from that run.`;
   if (running) {
     const strat = info.strategy ? `${info.strategy}${info.version ? " " + info.version : ""}` : "";
-    mode = info.mode === "observe" ? "Observing the live market" : info.mode === "flatten" ? "Flattening positions" :
-      info.sim ? `Rehearsal: ${strat}` : `LIVE TRADING: ${strat}`;
+    mode = info.mode === "observe" ? "Observing the real market" : info.mode === "flatten" ? "Closing all positions" :
+      info.sim ? `Rehearsal: ${strat}` : `Trading live: ${strat}`;
     const el = job.elapsed, mm = Math.floor(el / 60), ss = Math.floor(el % 60);
-    sub = `${mm}:${String(ss).padStart(2, "0")} elapsed${info.sim ? `, ${info.scenario} market, ${info.teams} rivals, ${info.speed ? info.speed + "x speed" : "max speed"}` : ""}${L.settings?.pause ? ", PAUSED" : ""}`;
+    sub = `${mm}:${String(ss).padStart(2, "0")} running${info.sim ? `, ${info.scenario} market, ${info.teams} rivals${info.speed && info.speed !== 1 ? ", " + info.speed + "x speed" : ""}` : ""}${L.settings?.pause ? ", PAUSED" : ""}`;
   }
   $("#railMode").textContent = mode; $("#railSub").textContent = sub;
-  const st = L.state?.length ? L.state[L.state.length - 1] : null, m = L.metrics;
-  const stats = [];
+  const st = L.state?.length ? L.state[L.state.length - 1] : null, m = L.metrics, stats = [];
   if (st) {
-    stats.push(["PnL", signed(st[1]), ""]);
-    const nd = Object.values(st[3] || {}); stats.push(["Net delta", nd.length ? nd.join(" / ") : "0", ""]);
+    stats.push(["PnL", signed(st[1]), 1]);
+    const nd = Object.values(st[3] || {}); stats.push(["Net delta", nd.length ? nd.join(" / ") : "0", 1]);
     const pos = Object.entries(st[2] || {}).filter(([, v]) => v).map(([k, v]) => `${k} ${v > 0 ? "+" : ""}${v}`).join("  ");
-    stats.push(["Positions", pos || "flat", ""]);
+    stats.push(["Positions", pos || "none", 0]);
   }
-  if (m) { stats.push(["Orders/s", fmt(m.ops_per_sec, 1), ""]); stats.push(["Rejects", String((m.orders || {}).rejected || 0), ""]); }
-  $("#railStats").innerHTML = (running || st) ? stats.map(([l, v]) => `<div class="stat ${l === "PnL" || l === "Net delta" ? "" : "opt"}"><b>${esc(v)}</b><span>${l}</span></div>`).join("") : "";
+  if (m) { stats.push(["Orders / s", fmt(m.ops_per_sec, 1), 0]); stats.push(["Rejected", String((m.orders || {}).rejected || 0), 0]); }
+  $("#railStats").className = "stats" + (running ? "" : " stale");
+  $("#railStats").innerHTML = stats.map(([l, v, keep]) => `<div class="stat ${keep ? "" : "opt"}"><b>${esc(v)}</b><span>${l}</span></div>`).join("");
   $("#btnStop").disabled = !running;
   $("#btnPause").disabled = !hasSettings; $("#btnFlatStop").disabled = !hasSettings;
   const paused = running && L.settings?.pause;
@@ -584,30 +765,25 @@ function niceTicks(lo, hi, n = 5) {
   const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
   return out;
 }
-function chart(el, { series, markers = [], height = 210, yfmt = v => fmt(v, 2), xfmt = v => fmt(v, 2) + " min", zero = false, xlabel = "min" }) {
+function chart(el, { series, markers = [], height = 210, yfmt = v => fmt(v, 2), zero = false }) {
   const pts = series.flatMap(s => s.points);
-  if (!pts.length) { el.innerHTML = `<div class="empty">No data yet</div>`; return; }
+  if (!pts.length) { el.innerHTML = `<div class="empty">No data yet. It appears a few seconds after the run starts.</div>`; return; }
   const W = Math.max(320, el.clientWidth || 600), H = height, ml = 58, mr = 14, mt = 10, mb = 26;
-  let xs = pts.map(p => p[0]), ys = pts.map(p => p[1]).concat(markers.map(m => m.y));
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]).concat(markers.map(m => m.y));
   let x0 = Math.min(...xs), x1 = Math.max(...xs); if (x1 === x0) x1 = x0 + 1;
   let y0 = Math.min(...ys), y1 = Math.max(...ys); if (zero) { y0 = Math.min(0, y0); y1 = Math.max(0, y1); }
   const pad = (y1 - y0) * 0.08 || 1; y0 -= pad; y1 += pad;
   const X = x => ml + (x - x0) / (x1 - x0) * (W - ml - mr), Y = y => mt + (1 - (y - y0) / (y1 - y0)) * (H - mt - mb);
   const yt = niceTicks(y0, y1, 4), xt = niceTicks(x0, x1, 6);
-  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(series.map(s => s.name).join(", "))}">`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(series.map(s => s.name).join(", "))} over time">`;
   yt.forEach(v => svg += `<line x1="${ml}" x2="${W - mr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--rule-2)"/><text x="${ml - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="var(--ink-3)">${esc(yfmt(v))}</text>`);
-  if (zero && y0 < 0 && y1 > 0) svg += `<line x1="${ml}" x2="${W - mr}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--ink-3)" stroke-width="1"/>`;
-  const tickTxt = v => String(+v.toFixed(2));
-  xt.forEach(v => svg += `<text x="${X(v)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--ink-3)">${esc(tickTxt(v))}</text>`);
-  svg += `<text x="${W - mr}" y="${H - 8}" text-anchor="end" font-size="11" fill="var(--ink-3)">${esc(xlabel)}</text>`;
+  if (zero && y0 < 0 && y1 > 0) svg += `<line x1="${ml}" x2="${W - mr}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--ink-3)"/>`;
+  xt.forEach(v => svg += `<text x="${X(v)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--ink-3)">${+v.toFixed(2)}</text>`);
+  svg += `<text x="${W - mr}" y="${H - 8}" text-anchor="end" font-size="11" fill="var(--ink-3)">min</text>`;
   series.forEach(s => {
     if (!s.points.length) return;
     let d = "";
-    s.points.forEach((p, i) => {
-      if (i === 0) d += `M${X(p[0])},${Y(p[1])}`;
-      else if (s.step) d += `H${X(p[0])}V${Y(p[1])}`;
-      else d += `L${X(p[0])},${Y(p[1])}`;
-    });
+    s.points.forEach((p, i) => { d += i === 0 ? `M${X(p[0])},${Y(p[1])}` : s.step ? `H${X(p[0])}V${Y(p[1])}` : `L${X(p[0])},${Y(p[1])}`; });
     svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
   });
   markers.forEach(m => {
@@ -624,19 +800,15 @@ function chart(el, { series, markers = [], height = 210, yfmt = v => fmt(v, 2), 
     const rect = svgEl.getBoundingClientRect(), px = (ev.clientX - rect.left) * W / rect.width;
     if (px < ml || px > W - mr) { tip.style.display = "none"; xh.setAttribute("visibility", "hidden"); return; }
     const x = x0 + (px - ml) / (W - ml - mr) * (x1 - x0);
-    const rows = series.map(s => {
-      let best = null; for (const p of s.points) { if (p[0] <= x) best = p; else break; }
-      return best ? `<div><b style="color:${s.color}">${esc(s.name)}</b> ${esc(yfmt(best[1]))}</div>` : "";
-    }).join("");
-    tip.innerHTML = `<div class="faint">${esc(xfmt(x))}</div>${rows}`;
-    xh.setAttribute("x1", px); xh.setAttribute("x2", px); xh.setAttribute("visibility", "visible");
-    tip.style.display = "block";
+    const rows = series.map(s => { let best = null; for (const p of s.points) { if (p[0] <= x) best = p; else break; }
+      return best ? `<div><b style="color:${s.color}">${esc(s.name)}</b> ${esc(yfmt(best[1]))}</div>` : ""; }).join("");
+    tip.innerHTML = `<div class="faint">${fmt(x, 2)} min</div>${rows}`;
+    xh.setAttribute("x1", px); xh.setAttribute("x2", px); xh.setAttribute("visibility", "visible"); tip.style.display = "block";
     const left = ev.clientX - el.getBoundingClientRect().left;
     tip.style.left = Math.min(left + 12, el.clientWidth - tip.offsetWidth - 4) + "px"; tip.style.top = "26px";
   };
   svgEl.onmouseleave = () => { tip.style.display = "none"; xh.setAttribute("visibility", "hidden"); };
 }
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
 /* ------------------------------------------------------------------ monitor */
 function renderMonitor(data) {
@@ -645,96 +817,121 @@ function renderMonitor(data) {
   $("#monEmpty").hidden = !!has; $("#monBody").hidden = !has;
   if (!has || S.tab !== "monitor") return;
   const t0 = data.t0 ?? data.state?.[0]?.[0] ?? 0, mins = t => (t - t0) / 60;
-  $("#monRunName").textContent = data.run_dir + (S.view ? " (past run)" : "");
-  const st = data.state || [];
+  $("#monRunName").textContent = (S.view ? "past run: " : "") + data.run_dir.split("/").pop();
+  const st = data.state || [], colors = [css("--s1"), css("--s2"), "#1c8a5a", "#7a5ad6"];
   chart($("#chPnl"), { series: [{ name: "PnL", color: css("--s1"), points: st.filter(r => r[1] != null).map(r => [mins(r[0]), r[1]]) }], zero: true });
   const insts = [...new Set(st.flatMap(r => Object.keys(r[2] || {})))].sort();
-  const colors = [css("--s1"), css("--s2"), "#1c8a5a", "#7a5ad6"];
   chart($("#chPos"), { series: insts.map((k, i) => ({ name: k, color: colors[i % 4], step: true, points: st.map(r => [mins(r[0]), (r[2] || {})[k] || 0]) })), zero: true, yfmt: v => fmt(v, 0) });
   const mids = data.mids || {}, minst = Object.keys(mids).sort((a, b) => a.length - b.length);
-  const fills = (data.fills || []).filter(f => minst.includes(f[1]));
   chart($("#chPx"), {
     series: minst.map((k, i) => ({ name: k, color: colors[i % 4], step: true, points: mids[k].map(p => [mins(p[0]), p[1]]) })),
-    markers: fills.slice(-200).map(f => ({ x: mins(f[0]), y: f[3], up: f[2] === "bid", color: colors[Math.max(0, minst.indexOf(f[1])) % 4] })),
+    markers: (data.fills || []).filter(f => minst.includes(f[1])).slice(-200).map(f => ({ x: mins(f[0]), y: f[3], up: f[2] === "bid", color: colors[Math.max(0, minst.indexOf(f[1])) % 4] })),
     height: 240,
   });
   renderMetrics(data.metrics);
+  renderAdvice(data);
   renderSettings(data);
   renderEvents(data.events || [], t0);
   if (document.activeElement !== $("#notes") && !S.notesDirty) $("#notes").value = data.notes || "";
   const con = $("#monConsole"), atBottom = con.scrollTop + con.clientHeight >= con.scrollHeight - 20;
-  con.textContent = (S.view ? [] : (data.console || [])).join("\n") || (S.view ? "Console output is in console.log of this run." : "");
+  con.textContent = S.view ? "The full console of a past run is in its console.log file (inside the zip)." : (data.console || []).join("\n");
   if (atBottom) con.scrollTop = con.scrollHeight;
 }
+const qh = id => `<button class="q" data-h="${id}">?</button>`;
 function renderMetrics(m) {
-  if (!m) { $("#monPairs").innerHTML = `<div class="empty">First monitor update arrives after ~10 s.</div>`; $("#monFills").innerHTML = ""; $("#monHealth").innerHTML = ""; return; }
-  $("#monMetricsAge").textContent = `updated at ${fmt(m.elapsed, 0)} s`;
+  if (!m) { $("#monPairs").innerHTML = `<div class="empty">The first summary arrives about 10 seconds after starting.</div>`; $("#monFills").innerHTML = ""; $("#monHealth").innerHTML = ""; return; }
+  $("#monMetricsAge").textContent = `updated ${fmt(m.elapsed, 0)} s into the run`;
   const rows = Object.entries(m.pairs || {}).map(([name, p]) => {
     const [P, D] = name.split("/"), q = (p.our_quotes || {})[D] || {}, ob = p.others_at_or_better || {};
     return `<tr><td>${esc(name)}</td><td class="num">${fmt(p.spread_ticks?.[P], 1)} / ${fmt(p.spread_ticks?.[D], 1)}</td>
-      <td class="num">${fmt(p.crossed_pct, 1)}%</td><td class="num">${q.bid ? q.bid[0] + " × " + q.bid[1] : "–"}</td><td class="num">${q.ask ? q.ask[0] + " × " + q.ask[1] : "–"}</td>
+      <td class="num">${fmt(p.crossed_pct, 1)}%</td><td class="num">${q.bid ? q.bid[0] + " (" + q.bid[1] + ")" : "none"}</td><td class="num">${q.ask ? q.ask[0] + " (" + q.ask[1] + ")" : "none"}</td>
       <td class="num">${ob[D + ":bid"] ?? "–"} / ${ob[D + ":ask"] ?? "–"}</td><td class="num">${p.net_delta}</td>
       <td class="num">${(p.market_trades?.[P] || [0])[0]} / ${(p.market_trades?.[D] || [0])[0]}</td></tr>`;
   }).join("");
-  $("#monPairs").innerHTML = `<table><thead><tr><th>Pair</th><th class="num">Spread P / D (ticks)</th><th class="num">Crossed</th>
-    <th class="num">Our bid</th><th class="num">Our ask</th><th class="num">Rivals at/better bid / ask</th><th class="num">Net delta</th><th class="num">Market trades P / D</th></tr></thead><tbody>${rows}</tbody></table>`;
+  $("#monPairs").innerHTML = `<table><thead><tr><th>Pair (busy / thin)</th><th class="num">Spread busy / thin, ticks${qh("g-spread")}</th><th class="num">Mispriced${qh("g-crossed")}</th>
+    <th class="num">Our buy (lots)</th><th class="num">Our sell (lots)</th><th class="num">Rivals at our price or better, buy / sell${qh("g-queue")}</th>
+    <th class="num">Net delta${qh("g-net-delta")}</th><th class="num">Trades busy / thin</th></tr></thead><tbody>${rows}</tbody></table>`;
   const mk = m.markout_ticks || {}, tags = Object.keys(m.fills || {});
-  $("#monFills").innerHTML = tags.length ? `<table><thead><tr><th>Reason</th><th class="num">Fills</th><th class="num">Lots</th><th class="num">Edge at fill</th>
-    <th class="num">After 1 s</th><th class="num">After 5 s</th><th class="num">After 30 s</th></tr></thead><tbody>${tags.map(t => {
-      const f = m.fills[t]; const v = h => mk[h]?.[t];
-      return `<tr><td>${esc(t)}</td><td class="num">${f.n}</td><td class="num">${f.vol}</td><td class="num ${cls(f.edge_ticks_per_lot)}">${signed(f.edge_ticks_per_lot)}</td>
+  const TAG = { quote: "Our waiting quote was hit", hedge_passive: "Patient hedge", hedge: "Hedge that crossed the spread", arb_dual: "Arbitrage", flatten: "Closing positions", hedge_on_dual: "Emergency hedge on thin listing", arb_primary: "Arbitrage (busy side)" };
+  $("#monFills").innerHTML = tags.length ? `<table><thead><tr><th>Why we traded</th><th class="num">Trades</th><th class="num">Lots</th><th class="num">Edge at trade${qh("g-edge")}</th>
+    <th class="num">After 1 s${qh("g-markout")}</th><th class="num">After 5 s</th><th class="num">After 30 s</th></tr></thead><tbody>${tags.map(t => {
+      const f = m.fills[t], v = h => mk[h]?.[t];
+      return `<tr><td>${esc(TAG[t] || t)} <span class="faint">${esc(t)}</span></td><td class="num">${f.n}</td><td class="num">${f.vol}</td><td class="num ${cls(f.edge_ticks_per_lot)}">${signed(f.edge_ticks_per_lot)}</td>
         <td class="num ${cls(v("1s"))}">${signed(v("1s"))}</td><td class="num ${cls(v("5s"))}">${signed(v("5s"))}</td><td class="num ${cls(v("30s"))}">${signed(v("30s"))}</td></tr>`;
-    }).join("")}</tbody></table>` : `<div class="empty">No fills in the last window.</div>`;
-  const o = m.orders || {}, lat = m.latency_ms || {}, ins = lat.insert_order;
-  const health = [["Orders / s", fmt(m.ops_per_sec, 1)], ["Rejected", o.rejected || 0], ["Throttled by us", o.throttled || 0],
-    ["Insert latency", ins ? fmt(ins.avg, 1) + " ms" : "–"], ["Strategy loop", fmt(m.loop_ms?.strategy_avg, 1) + " ms"], ["Recorder", fmt(m.loop_ms?.recorder_avg, 1) + " ms"]];
-  const rej = Object.entries(o).filter(([k]) => k.startsWith("reject:")).map(([k, v]) => `${k.slice(7)} (${v})`).join(", ");
-  $("#monHealth").innerHTML = health.map(([l, v]) => `<div><b>${esc(v)}</b><span>${l}</span></div>`).join("") + (rej ? `<div style="grid-column:1/-1" class="note bad">Rejects: ${esc(rej)}</div>` : "");
+    }).join("")}</tbody></table>` : `<div class="empty">No trades in the last 10 seconds.</div>`;
+  const o = m.orders || {}, ins = (m.latency_ms || {}).insert_order;
+  const health = [["Orders per second", fmt(m.ops_per_sec, 1)], ["Rejected by exchange", o.rejected || 0], ["Held back by our budget", o.throttled || 0],
+    ["Order response time", ins ? fmt(ins.avg, 1) + " ms" : "–"], ["Bot loop time", fmt(m.loop_ms?.strategy_avg, 1) + " ms"], ["Recorder time", fmt(m.loop_ms?.recorder_avg, 1) + " ms"]];
+  $("#monHealth").innerHTML = health.map(([l, v]) => `<div><b>${esc(v)}</b><span>${l}</span></div>`).join("");
 }
-const SET_ORDER = ["size", "min_profit", "edge", "skew", "soft", "take_min_edge", "min_edge", "unwind_edge", "penny", "limit", "end_in_secs"];
+function renderAdvice(data) {
+  const m = data.metrics, st = data.state?.length ? data.state[data.state.length - 1] : null, s = data.settings || {}, out = [];
+  const add = (level, title, text, h) => out.push({ level, title, text, h });
+  const running = !S.view && S.live?.job?.running;
+  if (!m) add("info", "Waiting for the first summary", "Advice appears about 10 seconds after the start.");
+  else {
+    const o = m.orders || {}, rej = Object.entries(o).filter(([k]) => k.startsWith("reject:"));
+    if (o.rejected) add("bad", `The exchange refused ${o.rejected} order${o.rejected > 1 ? "s" : ""}`,
+      `Reason: ${rej.map(([k]) => k.slice(7)).join(", ") || "see Events"}. If it mentions the position limit, lower Quote size or Soft limit; if it mentions the rate, lower Order budget.`, "g-reject");
+    if (s.pause) add("info", "Trading is paused", "No new quotes are being placed. Hedging continues. Press Resume trading when ready.", "p-pause");
+    const limit = s.limit || 100;
+    Object.entries(st?.[2] || {}).forEach(([k, v]) => { if (Math.abs(v) >= 0.8 * limit) add("warn", `${k} position is ${v}, close to the limit of ${limit}`, "One side may stop quoting. Lower 'Lean only above' or Quote size.", "p-skew_start"); });
+    Object.entries(m.pairs || {}).forEach(([name, p]) => {
+      if (Math.abs(p.net_delta) > 20) add("warn", `Net delta is ${p.net_delta} on ${name}`, "Risk is not fully covered. Check the busy listing is trading; lower Max unhedged lots if this persists.", "g-net-delta");
+      const sp = p.spread_ticks?.[name.split("/")[0]];
+      if (sp != null && sp <= 1.2) add("info", "The busy listing's spread is about 1 tick", "Every hedge costs half a tick here. v8 with Quote size 10 is the safer choice.", "playbook");
+    });
+    const q5 = (m.markout_ticks || {})["5s"]?.quote;
+    if (q5 != null && q5 < -0.3) add("warn", "Prices move against our quotes after we trade", `Quotes lose ${fmt(-q5, 2)} ticks 5 seconds later on average. Raise Minimum profit per trade (to about 0.8) or lower Quote size.`, "p-min_profit");
+    if ((o.throttled || 0) > 20) add("warn", "The bot is often held back by its order budget", "Fine occasionally. If constant, raise Loop period a little.", "g-throttle");
+    const loop = m.loop_ms?.strategy_avg, per = +(S.live?.job?.info?.period || 0.1) * 1000;
+    if (loop != null && loop > per * 0.8) add("warn", "The bot's loop is slow", `Each loop takes ${fmt(loop, 0)} ms. Raise Record every N loops to 2 or 3, or Loop period.`, "p-record_every");
+  }
+  if ((data.events || []).some(e => e.kind === "error")) add("bad", "Errors happened", "See Events. One bad response does not stop the bot; if they repeat, pause and download the run.", "trouble");
+  if (m && !out.some(x => x.level === "warn" || x.level === "bad")) add("good", running ? "Everything looks healthy" : "No problems found in this run", running ? "Nothing needs your attention right now." : "");
+  $("#advice").innerHTML = out.map(x => `<li class="${x.level}"><b>${esc(x.title)} ${x.h ? qh(x.h) : ""}</b>${esc(x.text)}</li>`).join("");
+}
+const SET_MAIN = ["size", "min_profit", "take_min_edge", "min_edge", "soft", "limit", "skew", "edge", "penny", "hedge_when_paused"];
 function renderSettings(data) {
   const s = data.settings;
   $("#setPanel").hidden = !s;
   if (!s) return;
-  const editable = !S.view && data.job?.running !== false && (S.live?.job?.running);
-  const keys = Object.keys(s).filter(k => !["pause", "flatten"].includes(k));
-  keys.sort((a, b) => (SET_ORDER.indexOf(a) + 1 || 99) - (SET_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b));
+  const editable = !S.view && !!S.live?.job?.running;
   if (document.activeElement && $("#setGrid").contains(document.activeElement)) return;  // don't redraw while typing
+  const keys = Object.keys(s).filter(k => !["pause", "flatten"].includes(k));
+  const main = SET_MAIN.filter(k => keys.includes(k)), rest = keys.filter(k => !main.includes(k)).sort();
   const types = S.meta.strategies.evolved.flag_types;
-  const field = k => {
-    const v = k in S.settingsDraft ? S.settingsDraft[k] : s[k];
-    const t = typeof s[k] === "boolean" ? "bool" : (types[k] === "str" ? "text" : "number");
-    return inputFor(k, v, t, "", k in S.settingsDraft, "s_");
-  };
-  const main = keys.filter(k => SET_ORDER.includes(k) || k === "hedge_when_paused"), rest = keys.filter(k => !main.includes(k));
+  const f = k => field(k, k in S.settingsDraft ? S.settingsDraft[k] : s[k], { hint: typeof s[k] === "boolean" ? "bool" : types[k], changed: k in S.settingsDraft, prefix: "s_", disabled: !editable, showShort: false });
   const open = $("#setFlags")?.open ? "open" : "";
-  $("#setGrid").innerHTML = `<div class="grid">${main.map(field).join("")}</div>` +
-    (rest.length ? `<details id="setFlags" ${open} style="margin-top:12px"><summary>Strategy flags (${rest.length})</summary><div class="grid">${rest.map(field).join("")}</div></details>` : "");
-  $$("#setGrid input").forEach(el => { el.disabled = !editable; el.oninput = el.onchange = () => {
+  $("#setGrid").innerHTML = `<div class="fields">${main.map(f).join("")}</div>` +
+    (rest.length ? `<details class="more" id="setFlags" ${open}><summary>All other settings (${rest.length})</summary><div class="fields">${rest.map(f).join("")}</div></details>` : "");
+  $$("#setGrid input").forEach(el => el.oninput = el.onchange = () => {
     const v = readInput(el), k = el.dataset.name;
     if (v === s[k]) delete S.settingsDraft[k]; else S.settingsDraft[k] = v;
-    el.closest("label").classList.toggle("changed", k in S.settingsDraft); updateSetButtons(editable);
-  }; });
+    el.closest(".field").classList.toggle("changed", k in S.settingsDraft); updateSetButtons(editable);
+  });
   ["#btnPause2", "#btnFlatten2"].forEach(b => $(b).disabled = !editable);
   updateSetButtons(editable);
 }
 function updateSetButtons(editable) {
   const n = Object.keys(S.settingsDraft).length;
   $("#btnApply").disabled = !editable || !n; $("#btnRevert").disabled = !n;
-  $("#setStatus").textContent = !editable ? "Read-only: this run is not active" : n ? `${n} change${n > 1 ? "s" : ""} not applied yet` : "";
+  $("#setStatus").textContent = !editable ? "Read-only: this run is not running" : n ? `${n} change${n > 1 ? "s" : ""} not applied yet` : "";
 }
 $("#btnApply").onclick = async () => {
   const ch = { ...S.settingsDraft };
-  try { await setSetting(ch); S.settingsDraft = {}; toast("Applied: " + Object.entries(ch).map(([k, v]) => `${k}=${v}`).join(", ")); poll(); } catch {}
+  try { await setSetting(ch); S.settingsDraft = {}; toast("Applied: " + Object.entries(ch).map(([k, v]) => `${pinfo(k).label} ${v}`).join(", ")); document.activeElement?.blur(); poll(); } catch {}
 };
 $("#btnRevert").onclick = () => { S.settingsDraft = {}; document.activeElement?.blur(); renderMonitor(); };
 function renderEvents(evs, t0) {
+  const NAME = { settings: "Settings changed", error: "Error", start: "Started", stop: "Stopped", paused_by_settings: "Paused", resumed_by_settings: "Resumed",
+    manual_flatten: "Flattened", quotes_pulled: "Quotes pulled", flatten_all: "Closing all positions", flatten_net: "Closing uncovered risk", instrument_changed: "Instrument changed", stream_disabled: "Data stream off" };
   const rows = evs.slice().reverse().map(e => {
-    let d = e.kind === "settings" ? Object.entries(e.changes || {}).map(([k, v]) => `${k}: ${v[0]} → ${v[1]}`).join(", ")
+    const d = e.kind === "settings" ? Object.entries(e.changes || {}).map(([k, v]) => `${pinfo(k).label}: ${v[0]} to ${v[1]}`).join(", ")
       : e.kind === "error" ? `${e.where}: ${e.error}` : e.reason || e.stream || e.i || "";
-    return `<tr><td class="num">${fmt((e.t - t0), 0)} s</td><td>${esc(e.kind)}</td><td class="${e.kind === "error" ? "neg" : ""}">${esc(d)}</td></tr>`;
+    return `<tr><td class="num">${fmt((e.t - t0), 0)} s</td><td>${esc(NAME[e.kind] || e.kind)}</td><td class="${e.kind === "error" ? "neg" : ""}">${esc(d)}</td></tr>`;
   }).join("");
-  $("#monEvents").innerHTML = rows ? `<table><tbody>${rows}</tbody></table>` : `<div class="empty">No events yet.</div>`;
+  $("#monEvents").innerHTML = rows ? `<table><tbody>${rows}</tbody></table>` : `<div class="empty">Nothing yet.</div>`;
 }
 $("#notes").oninput = () => S.notesDirty = true;
 $("#btnSaveNotes").onclick = async () => {
@@ -745,13 +942,14 @@ $("#btnSaveNotes").onclick = async () => {
 /* ------------------------------------------------------------------ runs */
 async function loadRuns() {
   let runs; try { runs = await api("/api/runs"); } catch (e) { toast(e.message, true); return; }
-  $("#runsTable").innerHTML = runs.length ? `<table><thead><tr><th>Run</th><th>What</th><th class="num">PnL</th><th class="num">Rank</th></tr></thead><tbody>${runs.map(r => {
+  $("#runsTable").innerHTML = runs.length ? `<table><thead><tr><th>When</th><th>What</th><th class="num">PnL</th><th class="num">Rank</th></tr></thead><tbody>${runs.map(r => {
     const when = r.name.slice(0, 15).replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, "$3/$2 $4:$5");
-    const what = [r.mode === "sim" ? `sim ${r.scenario}` : r.mode, r.strategy, r.version].filter(Boolean).join(", ");
+    const kind = r.mode === "sim" ? `Rehearsal (${r.scenario})` : r.strategy === "observe" || !r.strategy ? "Observe" : "Live";
+    const what = [kind, r.strategy !== "observe" ? r.strategy : null, r.version].filter(Boolean).join(", ");
     return `<tr class="click ${S.selRun === r.dir ? "sel" : ""}" data-dir="${esc(r.dir)}"><td>${esc(when)}${r.group !== "." ? `<div class="faint">${esc(r.group)}</div>` : ""}</td>
       <td>${esc(what)}${r.errors ? ` <span class="neg">${r.errors} errors</span>` : ""}</td><td class="num ${cls(r.pnl)}">${signed(r.pnl)}</td>
-      <td class="num">${r.rank ? r.rank + "/" + r.n : "–"}</td></tr>`;
-  }).join("")}</tbody></table>` : `<div class="empty">No runs yet. Every run you start is saved here.</div>`;
+      <td class="num">${r.rank ? r.rank + " of " + r.n : "–"}</td></tr>`;
+  }).join("")}</tbody></table>` : `<div class="empty">No runs yet. Everything you start in the Run tab is saved here.</div>`;
   $$("#runsTable tr.click").forEach(tr => tr.onclick = () => openRun(tr.dataset.dir));
 }
 $("#btnRefreshRuns").onclick = loadRuns;
@@ -760,39 +958,98 @@ async function openRun(dir) {
   let d; try { d = await api("/api/run?dir=" + encodeURIComponent(dir)); } catch (e) { toast(e.message, true); return; }
   const m = d.meta || {}, fin = m.final || {};
   $("#runDetail").innerHTML = `<div class="head"><h2>${esc(dir.split("/").pop())}</h2><div class="row">
-      <button class="btn" id="rdCharts">Open in Monitor</button><button class="btn" id="rdAnalyze">${d.report ? "Re-analyze" : "Analyze"}</button>
+      <button class="btn" id="rdCharts">Show charts</button><button class="btn" id="rdAnalyze">${d.report ? "Update report" : "Write report"}</button>
       <a class="btn" href="api/pack?dir=${encodeURIComponent(dir)}">Download zip</a></div></div>
-    <div class="kv" style="margin-bottom:12px">
+    <div class="kv" style="margin-bottom:14px">
       <div><b class="${cls(fin.pnl)}">${signed(fin.pnl)}</b><span>Final PnL</span></div>
-      <div><b>${m.rank ? m.rank + " / " + m.n_competitors : "–"}</b><span>Rank (sim)</span></div>
-      <div><b>${esc(m.strategy || "observe")}</b><span>${esc(JSON.stringify(m.params || {}))}</span></div>
+      <div><b>${m.rank ? m.rank + " of " + m.n_competitors : "–"}</b><span>Rank (practice only)</span></div>
+      <div><b>${esc(m.strategy || "observe")}${m.params?.version ? " " + esc(m.params.version) : ""}</b><span>Strategy</span></div>
       <div><b>${esc(m.stop_reason || "–")}</b><span>${m.errors ? m.errors + " errors" : "no errors"}</span></div></div>
-    <div class="md" id="rdReport">${d.report ? md(d.report) : `<div class="empty">No report yet. Click Analyze.</div>`}</div>
+    <div class="md">${d.report ? md(d.report) : `<div class="empty">No report yet. Press Write report.</div>`}</div>
     ${d.has_overview ? `<img class="overview" alt="PnL, positions and prices for this run" src="api/file?dir=${encodeURIComponent(dir)}&name=overview.png&t=${Date.now()}">` : ""}`;
   $("#rdAnalyze").onclick = async () => { $("#rdAnalyze").disabled = true; try { await api("/api/analyze", { dir }); toast("Report written"); openRun(dir); loadRuns(); } catch (e) { toast(e.message, true); } };
-  $("#rdCharts").onclick = () => { S.view = d; S.settingsDraft = {}; showTab("monitor"); toast("Showing a past run. Start or stop a run to return to live."); };
+  $("#rdCharts").onclick = () => { S.view = d; S.settingsDraft = {}; showTab("monitor"); toast("Showing a past run. Start a new run to return to live."); };
 }
+
+/* ------------------------------------------------------------------ markdown (small, no libraries) */
 function md(text) {
   const lines = text.split("\n"), out = []; let i = 0;
-  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`(.+?)`/g, "<code>$1</code>").replace(/(^|\s)_([^_]+?)_(?=\s|$)/g, "$1<i>$2</i>");
+  const inline = s => esc(s).replace(/\[([^\]]+)\]\((#[\w-]+)\)/g, '<a href="$2">$1</a>').replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/`(.+?)`/g, "<code>$1</code>").replace(/(^|\s)_([^_]+?)_(?=\s|$)/g, "$1<i>$2</i>");
   while (i < lines.length) {
     const l = lines[i];
+    if (/^\{\{(\w+)\}\}$/.test(l.trim())) { out.push(`<div data-slot="${l.trim().slice(2, -2)}"></div>`); i++; continue; }
     if (/^\|/.test(l)) {
       const rows = []; while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]);
       const cells = r => r.replace(/^\||\|$/g, "").split("|").map(c => c.trim());
-      const head = cells(rows[0]), body = rows.slice(2).map(cells);
-      const num = c => /^[-+]?[\d.,%]+$/.test(c);
+      const head = cells(rows[0]), body = rows.slice(2).map(cells), num = c => /^[-+]?[\d.,%]+$/.test(c);
       out.push(`<div class="tablewrap"><table><thead><tr>${head.map(h => `<th>${inline(h)}</th>`).join("")}</tr></thead><tbody>${body.map(r => `<tr>${r.map(c => `<td class="${num(c) ? "num" : ""}">${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
       continue;
     }
-    const h = l.match(/^(#{1,3})\s+(.*)/);
-    if (h) { out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); i++; continue; }
+    const h = l.match(/^(#{1,3})\s+(.*?)(?:\s*\{#([\w-]+)\})?\s*$/);
+    if (h) { out.push(`<h${h[1].length}${h[3] ? ` id="${h[3]}"` : ""}>${inline(h[2])}</h${h[1].length}>`); i++; continue; }
     if (/^- /.test(l)) { const items = []; while (i < lines.length && /^- /.test(lines[i])) items.push(lines[i++].slice(2)); out.push(`<ul>${items.map(x => `<li>${inline(x)}</li>`).join("")}</ul>`); continue; }
+    if (/^\d+\. /.test(l)) { const items = []; while (i < lines.length && /^\d+\. /.test(lines[i])) items.push(lines[i++].replace(/^\d+\. /, "")); out.push(`<ol>${items.map(x => `<li>${inline(x)}</li>`).join("")}</ol>`); continue; }
     if (l.trim()) out.push(`<p>${inline(l)}</p>`);
     i++;
   }
   return out.join("");
 }
+
+/* ------------------------------------------------------------------ handbook */
+let hbPromise = null;
+function renderHandbook() { return hbPromise ||= buildHandbook(); }
+async function buildHandbook() {
+  let text; try { text = await api("/handbook.md"); } catch (e) { $("#hbDoc").innerHTML = `<div class="empty">Could not load the handbook: ${esc(e.message)}</div>`; hbPromise = null; return; }
+  const doc = $("#hbDoc");
+  doc.innerHTML = md(text);
+  const slot = $('[data-slot="PARAMS"]', doc);
+  if (slot) {
+    const names = Object.keys(S.P.params).filter(n => !S.P.params[n].alias_of);
+    slot.innerHTML = `<p>Every setting you can see in the panel. The small grey name is what the code calls it.</p>` + S.P.groups.map(g => {
+      const ps = names.filter(n => S.P.params[n].group === g.id);
+      if (!ps.length) return "";
+      return `<h3 class="pgroup" style="font-size:16px;margin-top:26px">${esc(g.label)}</h3><p class="muted pgroup">${esc(g.intro)}</p>` + ps.map(n => {
+        const p = S.P.params[n];
+        return `<div class="param" id="p-${n}" data-search="${esc((p.label + " " + n + " " + p.short + " " + p.long).toLowerCase())}"><h3>${esc(p.label)} <code>${esc(n)}</code>${p.unit ? `<span class="help">in ${esc(p.unit)}</span>` : ""}</h3>
+          <p><b>${esc(p.short)}</b></p><p>${esc(p.long)}</p>${p.when ? `<p class="muted">When to change it: ${esc(p.when)}</p>` : ""}</div>`;
+      }).join("");
+    }).join("");
+  }
+  // wrap glossary entries so they can be searched and highlighted
+  const gl = $("#glossary", doc);
+  if (gl) {
+    let n = gl.nextElementSibling;
+    while (n) {
+      if (n.tagName === "H3") {
+        const term = n, def = n.nextElementSibling, wrap = document.createElement("div");
+        wrap.className = "gl"; wrap.dataset.search = (term.textContent + " " + (def?.textContent || "")).toLowerCase();
+        term.before(wrap); wrap.append(term); if (def && def.tagName === "P") wrap.append(def);
+        n = wrap.nextElementSibling;
+      } else n = n.nextElementSibling;
+    }
+  }
+  $("#hbToc").innerHTML = $$("h2", doc).map(h => `<a href="#${h.id}">${esc(h.textContent)}</a>`).join("");
+}
+function filterHandbook(q) {
+  q = q.trim().toLowerCase();
+  const doc = $("#hbDoc");
+  const blocks = [...doc.children, ...$$("[data-slot] > *", doc)];
+  blocks.forEach(el => el.classList.remove("hidden-by-search"));
+  if (!q) return;
+  // show only searchable items (settings, glossary terms) that match, plus the chapter titles that contain them
+  blocks.forEach(el => {
+    if (el.matches("[data-slot]")) return;
+    if (el.matches("[data-search]")) el.classList.toggle("hidden-by-search", !el.dataset.search.includes(q));
+    else if (el.tagName !== "H2") el.classList.add("hidden-by-search");
+  });
+  $$("h2", doc).forEach(h => {
+    let n = h.nextElementSibling, any = false;
+    while (n && n.tagName !== "H2") { if ($$("[data-search]", n).concat(n.matches("[data-search]") ? [n] : []).some(x => !x.classList.contains("hidden-by-search"))) any = true; n = n.nextElementSibling; }
+    h.classList.toggle("hidden-by-search", !any);
+  });
+}
+$("#hbSearch").oninput = e => filterHandbook(e.target.value);
 
 /* ------------------------------------------------------------------ backtest */
 async function runBench() {
@@ -806,18 +1063,17 @@ let benchTimer;
 async function pollBench() {
   clearTimeout(benchTimer);
   let b; try { b = await api("/api/bench"); } catch { return; }
-  const running = b.job?.running;
-  const lines = b.output || [];
-  $("#benchOut").textContent = lines.join("\n") || (b.job ? "Running..." : "Results appear here.");
+  const running = b.job?.running, lines = b.output || [];
+  $("#benchOut").textContent = lines.join("\n") || "Nothing yet.";
   const rx = /^(\S+)\s+(-?[\d.]+)\s+([\d.]+)\s+([\d.]+)\/(\d+)\s+(\d+)\/(\d+)\s*(-?[\d.]+)\s+(\d+)\s*$/;
-  const rows = lines.map(l => l.match(rx)).filter(Boolean);
-  const title = lines.find(l => /held-out markets/.test(l)) || "";
+  const rows = lines.map(l => l.match(rx)).filter(Boolean), title = lines.find(l => /held-out markets/.test(l)) || "";
   $("#benchTable").innerHTML = rows.length ? `<div class="help" style="margin-bottom:6px">${esc(title)}</div><table><thead><tr><th>Variant</th>
-    <th class="num">Mean PnL</th><th class="num">Spread (sd)</th><th class="num">Mean rank</th><th class="num">Finished 1st</th>
-    <th class="num">vs best rival</th><th class="num">Max net delta</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r[1])}</td>
-    <td class="num ${cls(+r[2])}">${signed(+r[2], 1)}</td><td class="num">${r[3]}</td><td class="num">${r[4]} / ${r[5]}</td>
-    <td class="num">${r[6]} of ${r[7]}</td><td class="num ${cls(+r[8])}">${signed(+r[8], 1)}</td><td class="num">${r[9]}</td></tr>`).join("")}</tbody></table>`
-    : `<div class="empty">${running ? "Running: results appear when every market has finished." : b.job ? "No results: open Raw output to see why." : "Pick variants and press Run backtest."}</div>`;
+    <th class="num">Average PnL</th><th class="num">Ups and downs (sd)</th><th class="num">Average rank</th><th class="num">Finished 1st</th>
+    <th class="num">vs best rival</th><th class="num">Biggest net delta${qh("g-net-delta")}</th></tr></thead><tbody>${rows.map(r => `<tr><td><code>${esc(r[1])}</code></td>
+    <td class="num ${cls(+r[2])}">${signed(+r[2], 1)}</td><td class="num">${r[3]}</td><td class="num">${r[4]} of ${r[5]}</td>
+    <td class="num">${r[6]} of ${r[7]}</td><td class="num ${cls(+r[8])}">${signed(+r[8], 1)}</td><td class="num">${r[9]}</td></tr>`).join("")}</tbody></table>
+    <p class="help">Average rank is out of all teams. 'vs best rival' is our PnL minus the best other team's: positive means we beat everyone on average.</p>`
+    : `<div class="empty">${running ? "Running. Results appear when every market has finished." : b.job ? "No results. Open Raw output to see why." : "Pick variants and press Run backtest."}</div>`;
   $("#btnBench").disabled = !!running; $("#btnBenchStop").disabled = !running;
   $("#benchStatus").textContent = running ? `Running for ${fmt(b.job.elapsed, 0)} s` : b.job ? `Finished in ${fmt(b.job.elapsed, 0)} s` : "";
   if (running) benchTimer = setTimeout(pollBench, 1500);
@@ -832,42 +1088,47 @@ async function poll() {
   try {
     S.live = await api("/api/live");
     const running = !!S.live.job?.running;
-    if (running && S.view && S.live.run_dir) { S.view = null; }
-    renderRail(); updateCmd();
+    if (running && S.view && S.live.run_dir) S.view = null;
+    renderRail(); updateStart();
     const con = $("#runConsole"), atBottom = con.scrollTop + con.clientHeight >= con.scrollHeight - 20;
-    con.textContent = (S.live.console || []).join("\n");
+    con.textContent = (S.live.console || []).join("\n") || "Output from the bot appears here once you start something.";
     if (atBottom) con.scrollTop = con.scrollHeight;
-    $("#consoleStatus").textContent = S.live.job ? (running ? "running" : `exited (${S.live.job.returncode})`) : "";
+    $("#consoleStatus").textContent = S.live.job ? (running ? "running" : `finished (code ${S.live.job.returncode})`) : "";
     if (S.tab === "monitor" && !S.view) renderMonitor(S.live);
     if (lastRunning && !running && S.tab === "runs") loadRuns();
     lastRunning = running;
     pollTimer = setTimeout(poll, running ? 1000 : 3000);
   } catch (e) {
-    $("#railMode").textContent = "Control panel server is not reachable";
-    $("#railSub").textContent = "Restart it with: python ui/server.py";
+    $("#rail").className = "rail idle";
+    $("#railMode").textContent = "The panel's server is not running";
+    $("#railSub").textContent = "Start it again with: python ui/server.py";
     pollTimer = setTimeout(poll, 3000);
   }
 }
 
 /* ------------------------------------------------------------------ boot */
 (async function boot() {
-  try { S.meta = await api("/api/meta"); } catch (e) { toast("Could not load: " + e.message, true); return; }
-  const strats = Object.keys(S.meta.strategies);
-  $("#selStrategy").innerHTML = strats.map(s => `<option>${s}</option>`).join("");
-  $("#selStrategy").value = store("strategy") || "evolved";
+  try { [S.meta, S.P] = await Promise.all([api("/api/meta"), api("/params.json")]); }
+  catch (e) { toast("Could not load the panel: " + e.message, true); return; }
+  S.strategy = store("strategy") || "evolved";
+  $("#strategyChoices").innerHTML = ["cross_arb", "evolved", "quote_hedge"].filter(s => S.meta.strategies[s]).map(s =>
+    `<button class="choice" data-s="${s}"><b>${esc(STRATS[s].label)}</b><span class="code" style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin:0">${s}</span><span>${esc(STRATS[s].text)}</span></button>`).join("");
+  $$("#strategyChoices .choice").forEach(b => b.onclick = () => { S.strategy = b.dataset.s; store("strategy", S.strategy); renderRunForm(); });
+  $("#presetChips").innerHTML = PRESETS.map((p, i) => `<button class="chip" data-i="${i}" title="${esc(p.why)}">${esc(p.name)}</button>`).join(" ");
+  $$("#presetChips .chip").forEach(b => b.onclick = () => applyPreset(PRESETS[+b.dataset.i]));
   const vers = S.meta.strategies.evolved.version_order;
-  $("#selVersion").innerHTML = vers.map(v => `<option>${v}</option>`).join("");
-  $("#selVersion").value = store("version") || vers[vers.length - 1];
-  const scen = S.meta.scenarios.map(s => `<option>${s}</option>`).join("");
-  $("#simScenario").innerHTML = scen; $("#bScenario").innerHTML = scen;
-  $("#simScenario").value = "crowded"; $("#bScenario").value = "crowded";
+  $("#selVersion").innerHTML = vers.map(v => `<option value="${v}">${v}: ${esc(VERSION_TEXT[v] || "")}</option>`).join("");
+  $("#selVersion").value = store("version") || "v8";
+  $("#bScenario").innerHTML = S.meta.scenarios.map(s => `<option value="${s}">${s}: ${esc(SCEN_TEXT[s] || "")}</option>`).join("");
+  $("#bScenario").value = "crowded";
   if (!S.meta.optibook) {
     $("#optibookNote").hidden = false;
-    $("#optibookNote").textContent = "The Optibook client is not installed on this machine, so Observe, Trade live and Flatten now are unavailable here. Rehearse in the simulator, or run this panel where the hackathon client is installed.";
+    $("#optibookNote").textContent = "This computer does not have the exchange's Optibook client, so only Rehearse is available here. On the hackathon machines all four options work.";
     if (S.mode !== "sim") S.mode = "sim";
+    ["live", "observe", "flatten"].forEach(m => $(`#modeChoices [data-mode="${m}"]`).disabled = true);
   }
-  ["live", "observe", "flatten"].forEach(m => $(`#modeSeg button[data-mode="${m}"]`).disabled = !S.meta.optibook);
-  renderStrategyForm(); setMode(S.mode);
+  if (store("hideWelcome")) $("#welcome").hidden = true;
+  renderRunForm();
   window.addEventListener("resize", () => { if (S.tab === "monitor") renderMonitor(); });
   showTab(store("tab") || "run");
   poll(); pollBench();

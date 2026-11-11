@@ -17,6 +17,14 @@ versions or tweaks on held-out markets). The status bar is blue for observe/rehe
 Stop and Flatten are always in it. Live and flatten modes ask for a second click. Standard library only, works offline.
 `--host 0.0.0.0` makes it reachable from another machine (e.g. a hackathon VM); `--port` changes the port.
 
+**New to trading? Open the Handbook tab first.** It explains the market, the dual-listing challenge, how the bot
+makes money, every button and every setting in plain words, with no background assumed: what each setting does,
+its unit, and when to change it. It also has a day plan, an "if you see this, do that" table, troubleshooting and a
+glossary of every term. Every `?` next to a setting or column opens the matching explanation, and the search box
+finds any term. The Run tab walks you through three steps (what to do, which strategy, settings), with quick-start
+presets and a plain-English summary of what Start will do. The Monitor has a "What to do now" card that turns the
+numbers into advice. Sources: `ui/handbook.md` (text) and `ui/params.json` (one entry per setting).
+
 ## Quick start
 
 ```bash
