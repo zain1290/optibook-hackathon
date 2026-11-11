@@ -194,6 +194,9 @@ class LoggingExchange:
         self._run = run
         self._next_tag = None
         self._news, self._news_cur = [], {"strategy": 0, "recorder": 0}  # one feed, two readers
+        self._news_pulled = False
+        self._cache = {}  # (method, instrument) -> result, valid for one loop (see begin_loop)
+        self.cache_hits = 0
         self.order_info = {}  # order_id -> {inst, side, price, volume, order_type, tag, t}
         self.call_stats = defaultdict(lambda: [0, 0.0, 0.0])  # method -> [n, total_ms, max_ms]
         self.order_counts = Counter()  # action / reject reason counters for the monitor
@@ -210,7 +213,34 @@ class LoggingExchange:
 
     # news: the exchange hands each post out once. The strategy and the recorder both need every post,
     # so the proxy fetches them, logs them, and gives each reader its own cursor.
+    # ---- one-loop read cache: the bot and the recorder share each read instead of asking the exchange twice.
+    # An order we send on an instrument drops that instrument's cached book and own orders, so the next
+    # reader sees the effect. Call begin_loop() once at the start of every loop.
+    CACHED = ("get_last_price_book", "get_outstanding_orders")
+
+    def begin_loop(self):
+        self._cache.clear()
+        self._news_pulled = False
+
+    def _cached(self, name, instrument_id):
+        key = (name, instrument_id)
+        if key in self._cache:
+            self.cache_hits += 1
+            return self._cache[key]
+        out = self._timed(name, getattr(self._e, name), instrument_id)
+        self._cache[key] = out
+        return out
+
+    def get_last_price_book(self, instrument_id):
+        return self._cached("get_last_price_book", instrument_id)
+
+    def get_outstanding_orders(self, instrument_id):
+        return self._cached("get_outstanding_orders", instrument_id)
+
     def _pull_news(self):
+        if self._news_pulled:  # the exchange is asked at most once per loop
+            return
+        self._news_pulled = True
         fn = getattr(self._e, "poll_new_social_media_feeds", None)
         if fn is None:
             return
@@ -255,6 +285,8 @@ class LoggingExchange:
 
     def _order(self, action, instrument_id, req, call):
         tag, self._next_tag = self._next_tag, None
+        for name in self.CACHED:  # our order changes this instrument's book and our order list
+            self._cache.pop((name, instrument_id), None)
         t = self._run.clock()
         t0 = time.perf_counter()
         resp, err = None, None

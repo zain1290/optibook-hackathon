@@ -69,7 +69,7 @@ def test_history_fallback_when_poll_methods_missing(tmp_path):
     e = OldClient()
     run = Run(str(tmp_path), "t", "sim", lambda: m.t)
     proxy = LoggingExchange(e, run)
-    rec = Recorder(e, proxy, run, pairs, lambda: m.t)
+    rec = Recorder(e, proxy, run, pairs, lambda: m.t, poll_every=1)
     for _ in range(50):
         m.step()
     proxy.insert_order("ASML", price=200.0, volume=3, side="bid", order_type="ioc")
@@ -85,3 +85,27 @@ def test_exit_net_leaves_only_hedged_pairs(tmp_path):
     d = _run(tmp_path, "--sim", "crowded", "--teams", "4", "--strategy", "evolved", "--minutes", "2", "--exit", "net")
     meta = json.load(open(os.path.join(d, "meta.json")))
     assert all(v == 0 for v in meta["final"]["net_delta"].values())
+
+
+def test_loop_cache_shares_reads_and_drops_them_after_our_orders(tmp_path):
+    from optisim import build
+    from optisim.exchange import SimExchange
+    from optisim.market import Limits
+    from runlog import LoggingExchange, Run
+
+    m, _ = build("bonafide_quiet", 0)
+    m.add_account("us", Limits())
+    e = SimExchange(m, "us")
+    run = Run(str(tmp_path), "t", "sim", lambda: m.t)
+    p = LoggingExchange(e, run)
+    for _ in range(5):
+        m.step()
+    p.begin_loop()
+    b1 = p.get_last_price_book("NVDA")
+    assert p.get_last_price_book("NVDA") is b1 and p.cache_hits == 1  # second reader gets the same read
+    r = p.insert_order("NVDA", price=b1.bids[0].price - 1.0, volume=1, side="bid")
+    assert r.success
+    assert len(p.get_outstanding_orders("NVDA")) == 1  # our order dropped the cached (empty) order list
+    p.begin_loop()
+    assert p.get_last_price_book("NVDA") is not b1  # a new loop reads fresh
+    run.close()

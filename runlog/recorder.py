@@ -230,7 +230,7 @@ class Recorder:
     """Pulls everything observable from the exchange each loop and writes it to the run folder."""
 
     def __init__(self, e, proxy, run, pairs, clock, depth=10, state_period=1.0, inst_period=2.0,
-                 metrics_period=10.0, printer=print):
+                 metrics_period=10.0, printer=print, poll_every=3):
         self.e, self.proxy, self.run, self.clock = e, proxy, run, clock
         self.depth, self.state_period, self.inst_period = depth, state_period, inst_period
         self.metrics_period, self.printer = metrics_period, printer
@@ -244,6 +244,8 @@ class Recorder:
         self.pnl_prev = None
         self.disabled = set()
         self._seen = {}
+        self.poll_every = max(1, int(poll_every))  # trades / ticks are fetched every N loops: nothing is lost,
+        self._n = 0                                 # the exchange hands over everything since the last poll
         self._write_instruments(force=True)
 
     def _safe(self, name, fn, *a):
@@ -260,11 +262,12 @@ class Recorder:
 
     def _poll_or_diff(self, poll_name, hist_name, i):
         """Prefer poll_new_*(i); if the client has no such method, diff the *_history(i) call instead."""
+        src = self.proxy if hasattr(self.proxy, "begin_loop") else self.e  # counted in the call statistics
         if poll_name not in self.disabled:
-            out = self._safe(poll_name, getattr(self.e, poll_name, None) or self._missing(poll_name), i)
+            out = self._safe(poll_name, getattr(src, poll_name, None) or self._missing(poll_name), i)
             if poll_name not in self.disabled:
                 return out or []
-        hist = self._safe(hist_name, getattr(self.e, hist_name, None) or self._missing(hist_name), i) or []
+        hist = self._safe(hist_name, getattr(src, hist_name, None) or self._missing(hist_name), i) or []
         seen = self._seen.setdefault((hist_name, i), set())
         new = []
         for x in hist:
@@ -295,14 +298,17 @@ class Recorder:
                         self.run.event("instrument_changed", i=k, before=old, after=v)
             self.last_inst = snap
 
-    def snapshot(self, loop_ms=None):
+    def snapshot(self, loop_ms=None, force_poll=False):
         t0 = time.perf_counter()
         now = self.clock()
         mon = self.monitor
         if loop_ms is not None:
             mon.loop_ms.append(loop_ms)
+        self._n += 1
+        poll = force_poll or self._n % self.poll_every == 0
+        src = self.proxy if hasattr(self.proxy, "begin_loop") else self.e  # shared one-loop cache
         for i in self.ids:
-            b = self._safe("get_last_price_book", self.e.get_last_price_book, i)
+            b = self._safe("get_last_price_book", src.get_last_price_book, i)
             if b is not None:
                 bids = [(_px(pv.price), int(pv.volume)) for pv in list(b.bids)[: self.depth]]
                 asks = [(_px(pv.price), int(pv.volume)) for pv in list(b.asks)[: self.depth]]
@@ -311,13 +317,13 @@ class Recorder:
                     self.last_book[i] = key
                     self.run.write("book", {"t": round(now, 4), "i": i, "b": bids, "a": asks})
                 mon.on_book(i, bids, asks, now)
-            for tk in self._poll_or_diff("poll_new_trade_ticks", "get_trade_tick_history", i):
+            for tk in (self._poll_or_diff("poll_new_trade_ticks", "get_trade_tick_history", i) if poll else []):
                 row = to_jsonable(tk)
                 row = row if isinstance(row, dict) else {"raw": row}
                 row.update({"t": round(now, 4), "i": i})
                 self.run.write("ticks", row)
                 mon.on_trade_tick(i, int(getattr(tk, "volume", 0) or 0))
-            for tr in self._poll_or_diff("poll_new_trades", "get_trade_history", i):
+            for tr in (self._poll_or_diff("poll_new_trades", "get_trade_history", i) if poll else []):
                 oid = getattr(tr, "order_id", None)
                 info = self.proxy.order_info.get(oid, {})
                 side, px, vol = getattr(tr, "side", None), _px(tr.price), int(tr.volume)
@@ -327,7 +333,7 @@ class Recorder:
                                          "order_price": info.get("price"), "order_t": info.get("t"),
                                          "ref_mid": mid, "edge_ticks": None if edge is None else round(edge, 3),
                                          "raw": to_jsonable(tr)})
-            oo = self._safe("get_outstanding_orders", self.e.get_outstanding_orders, i)
+            oo = self._safe("get_outstanding_orders", src.get_outstanding_orders, i)
             if oo is not None:
                 own = sorted((int(o.order_id), o.side, _px(o.price), int(o.volume)) for o in oo.values())
                 if own != self.last_own.get(i):

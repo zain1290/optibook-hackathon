@@ -148,6 +148,8 @@ def main():
     ap.add_argument("--logdir", default=os.path.join(BASE, "logs"))
     ap.add_argument("--book-depth", type=int, default=10)
     ap.add_argument("--record-every", type=int, default=1, help="record every N loops (raise if it slows the bot)")
+    ap.add_argument("--poll-every", type=int, default=3,
+                    help="recorder fetches new trades every N recorded loops (no data lost; fewer exchange calls)")
     ap.add_argument("--metrics-every", type=float, default=10.0, help="seconds between monitor prints")
     ap.add_argument("--flatten", action="store_true", help="cancel everything, close all positions, exit")
     ap.add_argument("--no-flatten-on-exit", action="store_true", help="same as --exit none")
@@ -215,7 +217,8 @@ def main():
         run.close()
         return
 
-    rec = Recorder(e, proxy, run, pairs, clock, depth=a.book_depth, metrics_period=a.metrics_every)
+    rec = Recorder(e, proxy, run, pairs, clock, depth=a.book_depth, metrics_period=a.metrics_every,
+                   poll_every=a.poll_every)
     rec.write_state(clock(), force=True)
     t_end = None if a.minutes is None else clock() + a.minutes * 60
     if strat is not None and t_end is not None and hasattr(strat, "end_time"):
@@ -228,6 +231,7 @@ def main():
         stop_file = os.path.join(run.dir, "STOP")  # created by the control panel (or by hand) to stop cleanly
         while t_end is None or clock() < t_end:
             t0 = time.perf_counter()
+            proxy.begin_loop()  # fresh reads this loop; within it the bot and the recorder share them
             if os.path.exists(stop_file):
                 reason = "stop requested"
                 print("stop requested")
@@ -301,7 +305,8 @@ def main():
                 if strat is None or exit_mode == "none" or not left:
                     break
                 print(f"still open after close attempt {attempt + 1}: {left}")
-            rec.snapshot()
+            proxy.begin_loop()
+            rec.snapshot(force_poll=True)  # always collect the closing fills
             final = rec.write_state(clock(), force=True)
             rec.emit_metrics(clock())
         except Exception as ex:

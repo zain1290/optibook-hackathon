@@ -71,7 +71,9 @@ class DerivArb:
             self.ctx = Ctx(e, self.position_limit, self.budget)
         ctx, now = self.ctx, self.clock()
         ctx.limit = self.position_limit
-        ctx.refresh_instruments()
+        if now - getattr(self, "_t_ref", -1e18) >= 5.0:  # reference data rarely changes: every 5 s is enough
+            self._t_ref = now
+            ctx.refresh_instruments()
         inst = ctx.inst
         derivs = [i for i, v in inst.items() if kind_of(v) in DERIV_TYPES and not getattr(v, "paused", False)
                   and not getattr(v, "expired", False)]
