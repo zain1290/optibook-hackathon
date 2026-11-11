@@ -1,196 +1,653 @@
 {
-  "groups": [
-    {"id": "limits", "label": "Limits and safety", "intro": "Hard boundaries that keep the bot inside the rules and away from big risks."},
-    {"id": "quoting", "label": "Quoting", "intro": "Our resting buy and sell orders on the thin listing. This is where most of the profit comes from."},
-    {"id": "hedging", "label": "Hedging", "intro": "How the bot cancels out the risk from every trade, by doing the opposite trade on the busy listing."},
-    {"id": "arb", "label": "Arbitrage", "intro": "Grabbing orders that other people have mispriced, for instant profit."},
-    {"id": "speed", "label": "Speed and orders", "intro": "How fast the bot runs and how many orders it may send."},
-    {"id": "run", "label": "Run options", "intro": "How this particular run starts and ends."},
-    {"id": "sim", "label": "Simulator", "intro": "Only for rehearsals: what the practice market looks like."},
-    {"id": "controls", "label": "Live controls", "intro": "Switches you can flip while the bot is running."}
-  ],
-  "params": {
-    "position_limit": {"label": "Position limit", "group": "limits", "unit": "lots", "aliases": ["limit"],
-      "short": "The most of one instrument you may hold, bought or sold.",
-      "long": "The exchange refuses any order that could take your position past this number, and it counts orders that are still waiting too. Set it to the number in the challenge brief so the bot plans around it instead of being refused.",
-      "when": "Set once, from the brief. Do not raise it above the official limit."},
-    "soft_limit": {"label": "Soft limit", "group": "limits", "unit": "lots", "aliases": ["soft"],
-      "short": "Above this position, stop quoting the side that would make it bigger.",
-      "long": "A safety margin below the position limit. If we already own 80 and the soft limit is 80, the bot stops offering to buy more and only offers to sell. Empty means 80% of the position limit.",
-      "when": "Lower it if positions keep running into the hard limit."},
-    "max_unhedged": {"label": "Max unhedged lots", "group": "limits", "unit": "lots",
-      "short": "How much uncovered risk the bot accepts before hedging immediately at any price.",
-      "long": "Normally the bot hedges patiently with a waiting order, which is cheaper. If the uncovered amount (net delta) grows past this number, it stops waiting and hedges straight away by crossing the spread.",
-      "when": "Lower it to take less risk; raise it to save hedging costs."},
-    "hedge_when_paused": {"label": "Keep hedging while paused", "group": "controls", "unit": "",
-      "short": "While paused, still cancel out any uncovered risk.",
-      "long": "Pausing pulls our quotes so no new trades happen. With this on, the bot still hedges anything left uncovered, so you are not exposed while paused. Leave it on.",
-      "when": "Leave on."},
-    "pause": {"label": "Pause trading", "group": "controls", "unit": "",
-      "short": "Pull all quotes and stop trading, but keep the bot running.",
-      "long": "Positions stay as they are and hedging continues (if 'Keep hedging while paused' is on). Use it to think, to wait out a strange market, or before changing several settings. Resume with the same button.",
-      "when": "Whenever something looks wrong and you need a moment."},
-    "flatten": {"label": "Flatten positions", "group": "controls", "unit": "",
-      "short": "Cancel every order and close every position, once.",
-      "long": "Sells what we own and buys back what we owe, at the current market prices, on every instrument. This costs a little (you cross the spread) but leaves you with zero risk. The bot keeps running afterwards unless you also stop it.",
-      "when": "Emergencies, or when the brief says you must end flat."},
-    "end_in_secs": {"label": "Session ends in", "group": "run", "unit": "seconds",
-      "short": "Tell the bot how long the session has left.",
-      "long": "Optional. Only matters for features that act near the end of a session.",
-      "when": "Rarely needed."},
-
-    "size": {"label": "Quote size", "group": "quoting", "unit": "lots",
-      "short": "How many lots each of our waiting buy and sell orders offers.",
-      "long": "Bigger quotes catch more of each incoming trade and earn more, but positions grow faster. 10 is the safe default. 15 did better in the simulator when the busy listing's spread was 2 ticks or more, and worse when it was 1 tick. Empty means the version's own size.",
-      "when": "Raise when trading goes well and the spread is wide; lower when the market is tight or jumpy."},
-    "default_size": {"label": "Version's quote size", "group": "quoting", "unit": "lots",
-      "short": "The quote size a version uses when 'Quote size' is empty.",
-      "long": "Set by the version (10, or 15 for v10). 'Quote size' overrides it.",
-      "when": "Change 'Quote size' instead."},
-    "min_profit": {"label": "Minimum profit per trade", "group": "quoting", "unit": "ticks",
-      "short": "Extra profit we demand on every quote, on top of the expected hedging cost.",
-      "long": "The bot sets its buy price at fair value minus (hedging cost + this), and its sell price at fair value plus the same. A higher number means fewer trades that are each worth more and are safer; a lower number means more trades with thinner profit.",
-      "when": "Raise it (for example to 0.8) if prices keep moving against you right after your trades."},
-    "edge": {"label": "Distance from busy listing", "group": "quoting", "unit": "ticks",
-      "short": "Older pricing method: how far below/above the busy listing's best prices we quote.",
-      "long": "Only used by quote_hedge and evolved versions v0 to v2. From v3 on, prices come from fair value and hedging cost instead (see 'Minimum profit per trade').",
-      "when": "Only for old versions."},
-    "cost_quote": {"label": "Price from fair value and hedge cost", "group": "quoting", "unit": "",
-      "short": "Quote at fair value plus or minus (expected hedge cost + minimum profit).",
-      "long": "The v3 improvement. It lets the bot quote as tightly as its real costs allow, which works whatever the spread looks like.",
-      "when": "Leave on."},
-    "passive_cost": {"label": "Expected hedge cost", "group": "quoting", "unit": "ticks",
-      "short": "What the bot assumes a patient hedge costs, when it can wait inside the spread.",
-      "long": "Used in the pricing formula when the busy listing's spread is 2 ticks or more. When the spread is 1 tick the bot assumes half a tick instead, because it must cross the spread.",
-      "when": "Rarely. The monitor's 'hedge_passive' row shows the real cost."},
-    "penny": {"label": "Step in front of rivals", "group": "quoting", "unit": "",
-      "short": "Place our quote 1 tick better than the best rival quote, never past our safe price.",
-      "long": "Being at a better price means incoming trades reach us first. The safe price is never crossed, so this cannot make a quote unprofitable.",
-      "when": "Leave on."},
-    "sticky_ticks": {"label": "Keep quotes in place", "group": "quoting", "unit": "ticks",
-      "short": "Leave a waiting quote alone if it is still safe and within this many ticks of the ideal price.",
-      "long": "Every replace costs an order and sends us to the back of the queue. Keeping quotes that are 'close enough' saves orders and keeps our place in line.",
-      "when": "Leave at 1."},
-    "quote_first": {"label": "Update quotes first", "group": "quoting", "unit": "",
-      "short": "Fix stale quotes before doing anything else each loop.",
-      "long": "If the price moves, an old quote can be picked off. Updating quotes first shortens that window.",
-      "when": "Leave on."},
-    "skew_per_lot": {"label": "Inventory lean", "group": "quoting", "unit": "ticks per lot", "aliases": ["skew"],
-      "short": "How far quotes shift per lot we hold, to encourage trades that shrink the position.",
-      "long": "If we own a lot, both quotes move down so selling becomes more likely. From v4 on this only applies above 'Lean only above'.",
-      "when": "Leave as is."},
-    "skew_start": {"label": "Lean only above", "group": "quoting", "unit": "lots",
-      "short": "Only lean quotes when the position on the thin listing is bigger than this.",
-      "long": "Our thin-listing position is hedged, so it carries no price risk; leaning all the time only lost trades (v4 finding). Leaning near the limit still keeps room to trade both ways.",
-      "when": "Lower it if positions hit the soft limit often."},
-
-    "hedge": {"label": "Hedge automatically", "group": "hedging", "unit": "",
-      "short": "Cancel out every trade's risk on the busy listing.",
-      "long": "For cross_arb. Leave on: without it, the bot holds uncovered positions.",
-      "when": "Leave on."},
-    "passive_hedge": {"label": "Hedge with a waiting order", "group": "hedging", "unit": "",
-      "short": "Hedge with an order that waits inside the busy listing's spread instead of crossing it.",
-      "long": "Crossing the spread costs about half the spread every time. If the spread is 2 ticks or more there is a price in the middle; an order waiting there is usually filled quickly by other traders at almost no cost. The v1 improvement.",
-      "when": "Leave on."},
-    "hedge_timeout": {"label": "Hedge patience", "group": "hedging", "unit": "seconds",
-      "short": "How long a waiting hedge may wait before the bot crosses the spread to finish it.",
-      "long": "Longer is cheaper on average but leaves risk uncovered for longer.",
-      "when": "Leave at 1. Lower to 0.5 in a very jumpy market."},
-    "touch_secs": {"label": "Try the best price first for", "group": "hedging", "unit": "seconds",
-      "short": "First wait at the best price (earning a little), then move to the middle, then cross.",
-      "long": "A three-step hedge: best price, middle of the spread, then cross. The first step only pays if the exchange's own traders give up their place in line often; 'Learn if best price works' checks that live.",
-      "when": "Leave as is."},
-    "adaptive_touch": {"label": "Learn if best price works", "group": "hedging", "unit": "",
-      "short": "Measure how often hedges at the best price get filled, and skip that step when they don't.",
-      "long": "The v6 improvement. In the simulator this step was very profitable in one kind of market and useless in another, so the bot measures it instead of assuming.",
-      "when": "Leave on."},
-    "touch_min_rate": {"label": "Minimum success rate", "group": "hedging", "unit": "0 to 1",
-      "short": "Keep using the best-price step only if at least this share of tries fill.",
-      "long": "0.35 means 35% of tries must fill.",
-      "when": "Leave as is."},
-    "touch_probe_secs": {"label": "Re-test every", "group": "hedging", "unit": "seconds",
-      "short": "When the best-price step is switched off, try it again this often.",
-      "long": "Markets change; this lets the bot notice.",
-      "when": "Leave as is."},
-    "hedge_cooldown": {"label": "Pause after hedging", "group": "hedging", "unit": "seconds",
-      "short": "Wait this long after a hedge before hedging the same instrument again.",
-      "long": "On the real exchange, positions can take a moment to update. Without a pause, the bot might hedge the same trade twice. Live runs use 0.2 automatically; the simulator uses 0.",
-      "when": "Leave empty or 0.2 live."},
-
-    "min_edge": {"label": "Minimum arbitrage gap", "group": "arb", "unit": "ticks",
-      "short": "How mispriced the two listings must be before we grab the cheap one.",
-      "long": "If someone sells the thin listing for less than the busy listing's best buying price (or the reverse), we can buy low and sell high at once. This is how many ticks of gap we require.",
-      "when": "Raise to 2 if arbitrage trades lose money afterwards."},
-    "take_min_edge": {"label": "Minimum arbitrage gap", "group": "arb", "unit": "ticks",
-      "short": "Same as 'Minimum arbitrage gap', for the arbitrage built into quote_hedge and evolved.",
-      "long": "See 'Minimum arbitrage gap'.",
-      "when": "Raise to 2 if arbitrage trades lose money afterwards."},
-    "unwind_edge": {"label": "Gap needed to shrink a position", "group": "arb", "unit": "ticks",
-      "short": "A smaller gap allowed for arbitrage trades that reduce what we hold.",
-      "long": "0 means we may trade at no profit if it shrinks our position. From v8 on, this only applies when hedging is nearly free (spread of 2 ticks or more).",
-      "when": "Leave at 0."},
-    "max_clip": {"label": "Max lots per arbitrage", "group": "arb", "unit": "lots",
-      "short": "The biggest single arbitrage trade.",
-      "long": "Caps how much risk one trade can create before it is hedged.",
-      "when": "Leave as is."},
-    "arb_single_leg": {"label": "Only take the scarce side", "group": "arb", "unit": "",
-      "short": "Grab the mispriced order on the thin listing and let the hedger handle the busy listing.",
-      "long": "The v2 improvement. Avoids paying to cross the spread on the busy listing and avoids trading against our own waiting hedge.",
-      "when": "Leave on."},
-    "arb_cost_aware": {"label": "Count hedging cost", "group": "arb", "unit": "",
-      "short": "Only use the zero-gap rule when hedging is nearly free.",
-      "long": "The v8 improvement. In a 1-tick market, zero-gap trades lost money because every hedge cost half a tick.",
-      "when": "Leave on."},
-
-    "max_ops_per_sec": {"label": "Order budget", "group": "speed", "unit": "orders per second",
-      "short": "The most orders (new, change, cancel) the bot sends per second.",
-      "long": "Keep it below the exchange's own limit from the brief (often 25), so the exchange never refuses our orders. When the budget is used up the bot waits; the monitor counts this as 'throttled'.",
-      "when": "Set a few below the brief's limit."},
-    "period": {"label": "Loop period", "group": "speed", "unit": "seconds",
-      "short": "How often the bot looks at the market and acts.",
-      "long": "Shorter is faster (0.1 beat 0.5 clearly when rivals ran the same strategy) but uses more computer time. If the monitor shows the loop taking longer than this, raise it.",
-      "when": "0.1 normally."},
-    "record_every": {"label": "Record every N loops", "group": "speed", "unit": "loops",
-      "short": "How often the logger saves the market. 1 = every loop.",
-      "long": "Recording takes a little time. If the monitor's 'Recorder' time is large and the bot feels slow, use 2 or 3.",
-      "when": "Leave at 1 unless the bot is slow."},
-
-    "version": {"label": "Version", "group": "run", "unit": "",
-      "short": "Which step of the strategy's development to run (v0 = original, v10 = latest).",
-      "long": "Each version adds one improvement found in the 10 practice rounds. v8 is the safest all-rounder; v10 adds bigger quotes. The Handbook's 'Strategies and versions' chapter lists them all.",
-      "when": "v8 if the busy listing's spread is 1 tick, v10 if 2 or more."},
-    "exit": {"label": "When stopping", "group": "run", "unit": "",
-      "short": "What to do with positions when you press Stop.",
-      "long": "'Close unhedged delta only' keeps matched pairs (they have no price risk) and closes the rest. 'Close every position' ends completely flat, which costs a bit more. 'Leave positions' does nothing.",
-      "when": "Check the brief: if you must end flat, choose 'Close every position'."},
-    "pairs": {"label": "Pairs", "group": "run", "unit": "",
-      "short": "Which instruments belong together, written busy:thin, e.g. ASML:ASML_DUAL.",
-      "long": "Leave empty to detect them from the names. Always check the bot picked the busy (liquid) listing first; the console prints what it found.",
-      "when": "Only if auto-detection gets it wrong."},
-    "minutes": {"label": "Stop after", "group": "run", "unit": "minutes",
-      "short": "Stop automatically after this long. Empty = run until you press Stop.",
-      "long": "Useful for timed tests.",
-      "when": "Usually empty live."},
-
-    "scenario": {"label": "Practice market", "group": "sim", "unit": "",
-      "short": "Which simulated market to practise in.",
-      "long": "crowded: the standard market with 12 rival teams. crowded_tight: the busy listing's spread is only 1 tick. crowded_sticky: the exchange's traders keep their place in line. crowded_clones: half the rivals run our own strategy. basic/competitive/hard: older test markets.",
-      "when": "crowded for practice; try the others to see how settings behave."},
-    "teams": {"label": "Rival teams", "group": "sim", "unit": "teams",
-      "short": "How many simulated rival teams trade in the practice market.",
-      "long": "Rivals are modelled on typical hackathon bots, including some buggy ones.",
-      "when": "12 is a realistic room."},
-    "seed": {"label": "Market seed", "group": "sim", "unit": "",
-      "short": "A number that picks which random market you get. Same number = same market.",
-      "long": "Use the same seed to compare two settings fairly; change it to see a new market.",
-      "when": "Change to try a different market."},
-    "speed": {"label": "Speed", "group": "sim", "unit": "",
-      "short": "1 = real time, so you can practise reacting. Higher = faster.",
-      "long": "Real time feels like the actual event. 'As fast as possible' finishes a 10-minute session in seconds.",
-      "when": "Real time to rehearse, fast to test."},
-
-    "limit": {"label": "Position limit", "group": "limits", "unit": "lots", "alias_of": "position_limit"},
-    "soft": {"label": "Soft limit", "group": "limits", "unit": "lots", "alias_of": "soft_limit"},
-    "skew": {"label": "Inventory lean", "group": "quoting", "unit": "ticks per lot", "alias_of": "skew_per_lot"}
+ "groups": [
+  {
+   "id": "limits",
+   "label": "Limits and safety",
+   "intro": "Hard boundaries that keep the bot inside the rules and away from big risks."
+  },
+  {
+   "id": "quoting",
+   "label": "Quoting",
+   "intro": "Our resting buy and sell orders. On the stocks they sit 1 tick inside the exchange's big maker; on a dual listing they sit on the thin listing."
+  },
+  {
+   "id": "hedging",
+   "label": "Hedging",
+   "intro": "How the bot cancels out the risk from every trade, by doing the opposite trade on the busy listing."
+  },
+  {
+   "id": "taking",
+   "label": "Picking off",
+   "intro": "Trading straight away against other people's quotes that are wrong: stale after a price move, or dumped to get rid of a position. The biggest earner in the simulator."
+  },
+  {
+   "id": "arb",
+   "label": "Arbitrage",
+   "intro": "Grabbing orders that other people have mispriced, for instant profit."
+  },
+  {
+   "id": "speed",
+   "label": "Speed and orders",
+   "intro": "How fast the bot runs and how many orders it may send."
+  },
+  {
+   "id": "news",
+   "label": "News",
+   "intro": "What the bot does when a social media post mentions one of the stocks."
+  },
+  {
+   "id": "derivs",
+   "label": "Options, futures and ETFs",
+   "intro": "Only used if the exchange lists these. The bot prices them from the stocks they depend on and trades when the market price is off."
+  },
+  {
+   "id": "pairs",
+   "label": "Pairs trading",
+   "intro": "Trading the gap between two related stocks. Off by default: in the simulator the spreads cost more than the gaps paid."
+  },
+  {
+   "id": "run",
+   "label": "Run options",
+   "intro": "How this particular run starts and ends."
+  },
+  {
+   "id": "sim",
+   "label": "Simulator",
+   "intro": "Only for rehearsals: what the practice market looks like."
+  },
+  {
+   "id": "controls",
+   "label": "Live controls",
+   "intro": "Switches you can flip while the bot is running."
   }
+ ],
+ "params": {
+  "position_limit": {
+   "label": "Position limit",
+   "group": "limits",
+   "unit": "lots",
+   "aliases": [
+    "limit"
+   ],
+   "short": "The most of one instrument you may hold, bought or sold.",
+   "long": "The exchange refuses any order that could take your position past this number, and it counts orders that are still waiting too. Set it to the number in the challenge brief so the bot plans around it instead of being refused.",
+   "when": "Set once, from the brief. Do not raise it above the official limit."
+  },
+  "soft_limit": {
+   "label": "Soft limit",
+   "group": "limits",
+   "unit": "lots",
+   "aliases": [
+    "soft"
+   ],
+   "short": "Above this position, stop quoting the side that would make it bigger.",
+   "long": "A safety margin below the position limit. If we already own 80 and the soft limit is 80, the bot stops offering to buy more and only offers to sell. Empty means 80% of the position limit.",
+   "when": "Lower it if positions keep running into the hard limit."
+  },
+  "max_unhedged": {
+   "label": "Max unhedged lots",
+   "group": "limits",
+   "unit": "lots",
+   "short": "How much uncovered risk the bot accepts before hedging immediately at any price.",
+   "long": "Normally the bot hedges patiently with a waiting order, which is cheaper. If the uncovered amount (net delta) grows past this number, it stops waiting and hedges straight away by crossing the spread.",
+   "when": "Lower it to take less risk; raise it to save hedging costs."
+  },
+  "hedge_when_paused": {
+   "label": "Keep hedging while paused",
+   "group": "controls",
+   "unit": "",
+   "short": "While paused, still cancel out any uncovered risk.",
+   "long": "Pausing pulls our quotes so no new trades happen. With this on, the bot still hedges anything left uncovered, so you are not exposed while paused. Leave it on.",
+   "when": "Leave on."
+  },
+  "pause": {
+   "label": "Pause trading",
+   "group": "controls",
+   "unit": "",
+   "short": "Pull all quotes and stop trading, but keep the bot running.",
+   "long": "Positions stay as they are and hedging continues (if 'Keep hedging while paused' is on). Use it to think, to wait out a strange market, or before changing several settings. Resume with the same button.",
+   "when": "Whenever something looks wrong and you need a moment."
+  },
+  "flatten": {
+   "label": "Flatten positions",
+   "group": "controls",
+   "unit": "",
+   "short": "Cancel every order and close every position, once.",
+   "long": "Sells what we own and buys back what we owe, at the current market prices, on every instrument. This costs a little (you cross the spread) but leaves you with zero risk. The bot keeps running afterwards unless you also stop it.",
+   "when": "Emergencies, or when the brief says you must end flat."
+  },
+  "end_in_secs": {
+   "label": "Session ends in",
+   "group": "run",
+   "unit": "seconds",
+   "short": "Tell the bot how long the session has left.",
+   "long": "Optional. Only matters for features that act near the end of a session.",
+   "when": "Rarely needed."
+  },
+  "size": {
+   "label": "Quote size",
+   "group": "quoting",
+   "unit": "lots",
+   "short": "How many lots each of our waiting buy and sell orders offers.",
+   "long": "Bigger quotes catch more of each incoming trade and earn more, but positions grow faster. Stocks (combo, stock_mm): 20 is the default; the background traders trade 20 lots at a time. Dual listing (evolved): 10, or 15 when the busy spread is 2+ ticks.",
+   "when": "Start the real exchange at 5, raise to 20 once fills and positions look normal."
+  },
+  "default_size": {
+   "label": "Version's quote size",
+   "group": "quoting",
+   "unit": "lots",
+   "short": "The quote size a version uses when 'Quote size' is empty.",
+   "long": "Set by the version (10, or 15 for v10). 'Quote size' overrides it.",
+   "when": "Change 'Quote size' instead."
+  },
+  "min_profit": {
+   "label": "Minimum profit per trade",
+   "group": "quoting",
+   "unit": "ticks",
+   "short": "Extra profit we demand on every quote, on top of the expected hedging cost.",
+   "long": "The bot sets its buy price at fair value minus (hedging cost + this), and its sell price at fair value plus the same. A higher number means fewer trades that are each worth more and are safer; a lower number means more trades with thinner profit.",
+   "when": "Raise it (for example to 0.8) if prices keep moving against you right after your trades."
+  },
+  "edge": {
+   "label": "Distance from busy listing",
+   "group": "quoting",
+   "unit": "ticks",
+   "short": "Older pricing method: how far below/above the busy listing's best prices we quote.",
+   "long": "Only used by quote_hedge and evolved versions v0 to v2. From v3 on, prices come from fair value and hedging cost instead (see 'Minimum profit per trade').",
+   "when": "Only for old versions."
+  },
+  "cost_quote": {
+   "label": "Price from fair value and hedge cost",
+   "group": "quoting",
+   "unit": "",
+   "short": "Quote at fair value plus or minus (expected hedge cost + minimum profit).",
+   "long": "The v3 improvement. It lets the bot quote as tightly as its real costs allow, which works whatever the spread looks like.",
+   "when": "Leave on."
+  },
+  "passive_cost": {
+   "label": "Expected hedge cost",
+   "group": "quoting",
+   "unit": "ticks",
+   "short": "What the bot assumes a patient hedge costs, when it can wait inside the spread.",
+   "long": "Used in the pricing formula when the busy listing's spread is 2 ticks or more. When the spread is 1 tick the bot assumes half a tick instead, because it must cross the spread.",
+   "when": "Rarely. The monitor's 'hedge_passive' row shows the real cost."
+  },
+  "penny": {
+   "label": "Step in front of rivals",
+   "group": "quoting",
+   "unit": "",
+   "short": "Place our quote 1 tick better than the best rival quote, never past our safe price.",
+   "long": "Being at a better price means incoming trades reach us first. The safe price is never crossed, so this cannot make a quote unprofitable.",
+   "when": "Leave on."
+  },
+  "sticky_ticks": {
+   "label": "Keep quotes in place",
+   "group": "quoting",
+   "unit": "ticks",
+   "short": "Leave a waiting quote alone while it is no more than this many ticks behind the ideal price.",
+   "long": "Every replace costs an order and sends us to the back of the queue. Keeping quotes that are 'close enough' saves orders and keeps our place in line.",
+   "when": "Stocks: 2 (did best in the simulator). Dual listing versions: 1."
+  },
+  "quote_first": {
+   "label": "Update quotes first",
+   "group": "quoting",
+   "unit": "",
+   "short": "Fix stale quotes before doing anything else each loop.",
+   "long": "If the price moves, an old quote can be picked off. Updating quotes first shortens that window.",
+   "when": "Leave on."
+  },
+  "skew_per_lot": {
+   "label": "Inventory lean",
+   "group": "quoting",
+   "unit": "ticks per lot",
+   "aliases": [
+    "skew"
+   ],
+   "short": "How far quotes shift per lot we hold, to encourage trades that shrink the position.",
+   "long": "If we own a lot, both quotes move down so selling becomes more likely. From v4 on this only applies above 'Lean only above'.",
+   "when": "Leave as is."
+  },
+  "skew_start": {
+   "label": "Lean only above",
+   "group": "quoting",
+   "unit": "lots",
+   "short": "Only lean quotes when the position on the thin listing is bigger than this.",
+   "long": "Our thin-listing position is hedged, so it carries no price risk; leaning all the time only lost trades (v4 finding). Leaning near the limit still keeps room to trade both ways.",
+   "when": "Lower it if positions hit the soft limit often."
+  },
+  "hedge": {
+   "label": "Hedge automatically",
+   "group": "hedging",
+   "unit": "",
+   "short": "Cancel out every trade's risk on the busy listing.",
+   "long": "For cross_arb. Leave on: without it, the bot holds uncovered positions.",
+   "when": "Leave on."
+  },
+  "passive_hedge": {
+   "label": "Hedge with a waiting order",
+   "group": "hedging",
+   "unit": "",
+   "short": "Hedge with an order that waits inside the busy listing's spread instead of crossing it.",
+   "long": "Crossing the spread costs about half the spread every time. If the spread is 2 ticks or more there is a price in the middle; an order waiting there is usually filled quickly by other traders at almost no cost. The v1 improvement.",
+   "when": "Leave on."
+  },
+  "hedge_timeout": {
+   "label": "Hedge patience",
+   "group": "hedging",
+   "unit": "seconds",
+   "short": "How long a waiting hedge may wait before the bot crosses the spread to finish it.",
+   "long": "Longer is cheaper on average but leaves risk uncovered for longer.",
+   "when": "Leave at 1. Lower to 0.5 in a very jumpy market."
+  },
+  "touch_secs": {
+   "label": "Try the best price first for",
+   "group": "hedging",
+   "unit": "seconds",
+   "short": "First wait at the best price (earning a little), then move to the middle, then cross.",
+   "long": "A three-step hedge: best price, middle of the spread, then cross. The first step only pays if the exchange's own traders give up their place in line often; 'Learn if best price works' checks that live.",
+   "when": "Leave as is."
+  },
+  "adaptive_touch": {
+   "label": "Learn if best price works",
+   "group": "hedging",
+   "unit": "",
+   "short": "Measure how often hedges at the best price get filled, and skip that step when they don't.",
+   "long": "The v6 improvement. In the simulator this step was very profitable in one kind of market and useless in another, so the bot measures it instead of assuming.",
+   "when": "Leave on."
+  },
+  "touch_min_rate": {
+   "label": "Minimum success rate",
+   "group": "hedging",
+   "unit": "0 to 1",
+   "short": "Keep using the best-price step only if at least this share of tries fill.",
+   "long": "0.35 means 35% of tries must fill.",
+   "when": "Leave as is."
+  },
+  "touch_probe_secs": {
+   "label": "Re-test every",
+   "group": "hedging",
+   "unit": "seconds",
+   "short": "When the best-price step is switched off, try it again this often.",
+   "long": "Markets change; this lets the bot notice.",
+   "when": "Leave as is."
+  },
+  "hedge_cooldown": {
+   "label": "Pause after hedging",
+   "group": "hedging",
+   "unit": "seconds",
+   "short": "Wait this long after a hedge before hedging the same instrument again.",
+   "long": "On the real exchange, positions can take a moment to update. Without a pause, the bot might hedge the same trade twice. Live runs use 0.2 automatically; the simulator uses 0.",
+   "when": "Leave empty or 0.2 live."
+  },
+  "min_edge": {
+   "label": "Minimum arbitrage gap",
+   "group": "arb",
+   "unit": "ticks",
+   "short": "How mispriced the two listings must be before we grab the cheap one.",
+   "long": "If someone sells the thin listing for less than the busy listing's best buying price (or the reverse), we can buy low and sell high at once. This is how many ticks of gap we require.",
+   "when": "Raise to 2 if arbitrage trades lose money afterwards."
+  },
+  "take_min_edge": {
+   "label": "Minimum arbitrage gap",
+   "group": "arb",
+   "unit": "ticks",
+   "short": "Same as 'Minimum arbitrage gap', for the arbitrage built into quote_hedge and evolved.",
+   "long": "See 'Minimum arbitrage gap'.",
+   "when": "Raise to 2 if arbitrage trades lose money afterwards."
+  },
+  "unwind_edge": {
+   "label": "Gap needed to shrink a position",
+   "group": "arb",
+   "unit": "ticks",
+   "short": "A smaller gap allowed for arbitrage trades that reduce what we hold.",
+   "long": "0 means we may trade at no profit if it shrinks our position. From v8 on, this only applies when hedging is nearly free (spread of 2 ticks or more).",
+   "when": "Leave at 0."
+  },
+  "max_clip": {
+   "label": "Max lots per arbitrage",
+   "group": "arb",
+   "unit": "lots",
+   "short": "The biggest single arbitrage trade.",
+   "long": "Caps how much risk one trade can create before it is hedged.",
+   "when": "Leave as is."
+  },
+  "arb_single_leg": {
+   "label": "Only take the scarce side",
+   "group": "arb",
+   "unit": "",
+   "short": "Grab the mispriced order on the thin listing and let the hedger handle the busy listing.",
+   "long": "The v2 improvement. Avoids paying to cross the spread on the busy listing and avoids trading against our own waiting hedge.",
+   "when": "Leave on."
+  },
+  "arb_cost_aware": {
+   "label": "Count hedging cost",
+   "group": "arb",
+   "unit": "",
+   "short": "Only use the zero-gap rule when hedging is nearly free.",
+   "long": "The v8 improvement. In a 1-tick market, zero-gap trades lost money because every hedge cost half a tick.",
+   "when": "Leave on."
+  },
+  "max_ops_per_sec": {
+   "label": "Order budget",
+   "group": "speed",
+   "unit": "orders per second",
+   "short": "The most orders (new, change, cancel) the bot sends per second.",
+   "long": "Keep it below the exchange's own limit from the brief (often 25), so the exchange never refuses our orders. When the budget is used up the bot waits; the monitor counts this as 'throttled'.",
+   "when": "Set a few below the brief's limit."
+  },
+  "period": {
+   "label": "Loop period",
+   "group": "speed",
+   "unit": "seconds",
+   "short": "How often the bot looks at the market and acts.",
+   "long": "Shorter is faster (0.1 beat 0.5 clearly when rivals ran the same strategy) but uses more computer time. If the monitor shows the loop taking longer than this, raise it.",
+   "when": "0.1 normally."
+  },
+  "record_every": {
+   "label": "Record every N loops",
+   "group": "speed",
+   "unit": "loops",
+   "short": "How often the logger saves the market. 1 = every loop.",
+   "long": "Recording takes a little time. If the monitor's 'Recorder' time is large and the bot feels slow, use 2 or 3.",
+   "when": "Leave at 1 unless the bot is slow."
+  },
+  "version": {
+   "label": "Version",
+   "group": "run",
+   "unit": "",
+   "short": "Which step of the strategy's development to run (v0 = original, v10 = latest).",
+   "long": "Each version adds one improvement found in the 10 practice rounds. v8 is the safest all-rounder; v10 adds bigger quotes. The Handbook's 'Strategies and versions' chapter lists them all.",
+   "when": "v8 if the busy listing's spread is 1 tick, v10 if 2 or more."
+  },
+  "exit": {
+   "label": "When stopping",
+   "group": "run",
+   "unit": "",
+   "short": "What to do with positions when you press Stop.",
+   "long": "'Close unhedged delta only' keeps matched pairs (they have no price risk) and closes the rest. 'Close every position' ends completely flat, which costs a bit more. 'Leave positions' does nothing.",
+   "when": "Check the brief: if you must end flat, choose 'Close every position'."
+  },
+  "pairs": {
+   "label": "Pairs",
+   "group": "run",
+   "unit": "",
+   "short": "Which instruments belong together, written busy:thin, e.g. ASML:ASML_DUAL.",
+   "long": "Leave empty to detect them from the names. Always check the bot picked the busy (liquid) listing first; the console prints what it found.",
+   "when": "Only if auto-detection gets it wrong."
+  },
+  "minutes": {
+   "label": "Stop after",
+   "group": "run",
+   "unit": "minutes",
+   "short": "Stop automatically after this long. Empty = run until you press Stop.",
+   "long": "Useful for timed tests.",
+   "when": "Usually empty live."
+  },
+  "scenario": {
+   "label": "Practice market",
+   "group": "sim",
+   "unit": "",
+   "short": "Which simulated market to practise in.",
+   "long": "crowded: the standard market with 12 rival teams. crowded_tight: the busy listing's spread is only 1 tick. crowded_sticky: the exchange's traders keep their place in line. crowded_clones: half the rivals run our own strategy. basic/competitive/hard: older test markets.",
+   "when": "crowded for practice; try the others to see how settings behave."
+  },
+  "teams": {
+   "label": "Rival teams",
+   "group": "sim",
+   "unit": "teams",
+   "short": "How many simulated rival teams trade in the practice market.",
+   "long": "Rivals are modelled on typical hackathon bots, including some buggy ones.",
+   "when": "12 is a realistic room."
+  },
+  "seed": {
+   "label": "Market seed",
+   "group": "sim",
+   "unit": "",
+   "short": "A number that picks which random market you get. Same number = same market.",
+   "long": "Use the same seed to compare two settings fairly; change it to see a new market.",
+   "when": "Change to try a different market."
+  },
+  "speed": {
+   "label": "Speed",
+   "group": "sim",
+   "unit": "",
+   "short": "1 = real time, so you can practise reacting. Higher = faster.",
+   "long": "Real time feels like the actual event. 'As fast as possible' finishes a 10-minute session in seconds.",
+   "when": "Real time to rehearse, fast to test."
+  },
+  "limit": {
+   "label": "Position limit",
+   "group": "limits",
+   "unit": "lots",
+   "alias_of": "position_limit"
+  },
+  "soft": {
+   "label": "Soft limit",
+   "group": "limits",
+   "unit": "lots",
+   "alias_of": "soft_limit"
+  },
+  "skew": {
+   "label": "Inventory lean",
+   "group": "quoting",
+   "unit": "ticks per lot",
+   "alias_of": "skew_per_lot"
+  },
+  "quote_edge": {
+   "label": "Distance from fair value",
+   "group": "quoting",
+   "unit": "ticks",
+   "short": "Our quotes stay at least this many ticks away from our fair value estimate.",
+   "long": "A quote 1 tick from fair value earns little and is easily picked off when the price jumps. In a crowded simulator market 1 tick lost money; 1.5 to 2 ticks broke even on quoting alone, and the real profit came from picking off.",
+   "when": "Raise to 2 if 'quote' markouts in the monitor are negative. Lower to 1 only in a quiet market with no rivals."
+  },
+  "inside": {
+   "label": "Ticks inside the best quote",
+   "group": "quoting",
+   "unit": "ticks",
+   "short": "How many ticks better than the best other quote we place ours.",
+   "long": "1 tick better is enough to be first in line for the background traders' 20-lot orders. More gives away edge for nothing.",
+   "when": "Leave at 1."
+  },
+  "take_edge": {
+   "label": "Pick-off threshold",
+   "group": "taking",
+   "unit": "ticks",
+   "short": "Buy or sell immediately when someone else's quote is this many ticks through fair value. 0 switches picking off off.",
+   "long": "Other teams leave quotes behind after a price move, or dump inventory below fair value. Grabbing those first was worth more than everything else together in the simulator (+2,000 vs about 0 without). Positions from picking off never go past the soft limit.",
+   "when": "Leave at 1. Raise to 2 if 'take' markouts in the monitor turn negative."
+  },
+  "take_size": {
+   "label": "Pick-off size",
+   "group": "taking",
+   "unit": "lots",
+   "short": "The most lots taken in one pick-off.",
+   "long": "Larger grabs more of a mistake, but builds positions faster.",
+   "when": "20; lower to 10 if positions swing a lot."
+  },
+  "news_pause": {
+   "label": "Pause after news",
+   "group": "news",
+   "unit": "seconds",
+   "short": "After a post naming a stock, pull our quotes on it for this long.",
+   "long": "News can move a price several ticks in a second. Quotes left in the book would be picked off by whoever reacts first.",
+   "when": "3. Raise to 5-10 if the news impact report shows big moves."
+  },
+  "news_trade_size": {
+   "label": "Trade on news",
+   "group": "news",
+   "unit": "lots",
+   "short": "Buy (good news) or sell (bad news) this many lots right after a post. 0 = never.",
+   "long": "Only pays if posts really move prices the way the words say. Run tools/news_impact.py on a recorded run first. In the simulator 50 lots added +100 to +600, but the simulator's news was built to move prices.",
+   "when": "0 until the news impact report shows clear moves; then 20-50."
+  },
+  "news_min_score": {
+   "label": "News strength needed",
+   "group": "news",
+   "unit": "words",
+   "short": "How many clearly good or bad words a post needs before we trade on it.",
+   "long": "The bot counts words like 'beats', 'upgrade' (good) and 'misses', 'probe' (bad). 1 reacts to most posts; 2 only to the clearer ones.",
+   "when": "1; raise to 2 if news trades are often wrong."
+  },
+  "wind_down_s": {
+   "label": "Wind down at the end",
+   "group": "limits",
+   "unit": "seconds",
+   "short": "In the last this-many seconds, the soft limit shrinks to zero so we finish nearly flat.",
+   "long": "Positions left at the end are valued at the last traded price, which one late trade can move. Being flat at the end removes that risk.",
+   "when": "60. Needs the end time: set 'Stop after' or 'end_in_secs'."
+  },
+  "max_stocks": {
+   "label": "Only the widest stocks",
+   "group": "quoting",
+   "unit": "stocks",
+   "short": "Quote only on this many stocks, picking those with the widest spreads. 0 = all.",
+   "long": "Each stock costs orders. If the order budget runs out (many 'held back' orders), focusing on the widest spreads keeps the best opportunities.",
+   "when": "0; set 4 if the monitor shows many held-back orders."
+  },
+  "fair": {
+   "label": "Fair value method",
+   "group": "quoting",
+   "unit": "",
+   "short": "How the bot estimates fair value: deep (middle of where real size sits), micro (weighted by the best sizes), or mid (middle of best bid and ask).",
+   "long": "'deep' ignores small orders inside the spread, which other teams can move around. 'micro' got dragged around by small rival orders and lost money in the simulator.",
+   "when": "deep."
+  },
+  "depth_lots": {
+   "label": "Size that counts as real",
+   "group": "quoting",
+   "unit": "lots",
+   "short": "For 'deep' fair value: a price level counts once at least this many lots sit there or better.",
+   "long": "The exchange maker shows 1000-3000 lots; other teams show 5-50. 200 separates them.",
+   "when": "200; lower if the real maker shows less."
+  },
+  "reserve_ops": {
+   "label": "Orders kept for emergencies",
+   "group": "speed",
+   "unit": "orders per second",
+   "short": "Part of the order budget that routine quote updates may not use. Pick-offs and safety cancels can.",
+   "long": "Without a reserve, constant small quote updates used the whole budget and the bot missed most pick-offs and even news cancels. A reserve of 6 added about +400 in the simulator.",
+   "when": "6."
+  },
+  "instruments": {
+   "label": "Which stocks",
+   "group": "quoting",
+   "unit": "",
+   "short": "Comma separated list, e.g. NVDA,AMD. Empty = every stock the exchange lists.",
+   "long": "Useful to test on one stock first, or to stay away from a stock that behaves strangely.",
+   "when": "Empty, or one liquid stock for the first live minutes."
+  },
+  "deriv_edge": {
+   "label": "Derivative mispricing needed",
+   "group": "derivs",
+   "unit": "ticks",
+   "short": "Buy an option, future or ETF when its price is this many ticks under our value; sell when over.",
+   "long": "Our value depends on our volatility estimate, so leave a margin for being wrong.",
+   "when": "3; raise to 5 if derivative trades lose."
+  },
+  "deriv_size": {
+   "label": "Derivative trade size",
+   "group": "derivs",
+   "unit": "lots",
+   "short": "Lots per derivative trade.",
+   "long": "",
+   "when": "10."
+  },
+  "vol": {
+   "label": "Volatility",
+   "group": "derivs",
+   "unit": "per year",
+   "short": "Annual volatility used to price options (0.3 = 30%). Empty = measured from the stock's own moves.",
+   "long": "Option value rises with volatility. If the brief or the market tells you a volatility, enter it; otherwise the bot measures it.",
+   "when": "Empty unless the brief gives one."
+  },
+  "vol_floor": {
+   "label": "Lowest volatility",
+   "group": "derivs",
+   "unit": "per year",
+   "short": "The measured volatility never goes below this.",
+   "long": "Stops the bot from pricing options as almost worthless early on, before it has measured anything.",
+   "when": "0.05."
+  },
+  "hedge_band": {
+   "label": "Delta allowed before hedging",
+   "group": "derivs",
+   "unit": "lots",
+   "short": "How much stock exposure from derivatives we accept before hedging immediately in the stock.",
+   "long": "Below this, the stock market maker leans its quotes to work the exposure off cheaply. Above it, the bot trades the stock straight away.",
+   "when": "combo: 40; deriv_arb alone: 10."
+  },
+  "use_pairs": {
+   "label": "Pairs trading on",
+   "group": "pairs",
+   "unit": "",
+   "short": "Also run pairs trading inside the combo bot.",
+   "long": "Off by default: in the simulator it added nothing after costs. Check tools/pair_stats.py on real data first.",
+   "when": "Off."
+  },
+  "stock_pairs": {
+   "label": "Pairs to trade",
+   "group": "pairs",
+   "unit": "",
+   "short": "Comma separated A:B pairs, e.g. MU:SNDK,NVDA:AMD.",
+   "long": "Pick pairs with a high 'swing/cost' in tools/pair_stats.py.",
+   "when": "Default list."
+  },
+  "entry_z": {
+   "label": "Gap needed to enter",
+   "group": "pairs",
+   "unit": "standard deviations",
+   "short": "Open a pair trade when the gap is this unusual (z-score).",
+   "long": "Higher = fewer, safer trades.",
+   "when": "2.5."
+  },
+  "exit_z": {
+   "label": "Gap to close at",
+   "group": "pairs",
+   "unit": "standard deviations",
+   "short": "Close the pair trade when the gap is back within this.",
+   "long": "",
+   "when": "0.5."
+  },
+  "lots": {
+   "label": "Pair step",
+   "group": "pairs",
+   "unit": "lots",
+   "short": "Lots added per loop when entering or leaving a pair position.",
+   "long": "",
+   "when": "10."
+  },
+  "max_lots": {
+   "label": "Biggest pair position",
+   "group": "pairs",
+   "unit": "lots",
+   "short": "Most lots of the first stock held in one pair trade.",
+   "long": "",
+   "when": "60."
+  },
+  "window": {
+   "label": "History length",
+   "group": "pairs",
+   "unit": "samples",
+   "short": "How many recent prices are used for the average gap.",
+   "long": "",
+   "when": "600 (5 minutes at 0.5 s)."
+  },
+  "min_samples": {
+   "label": "History before trading",
+   "group": "pairs",
+   "unit": "samples",
+   "short": "Do not trade a pair until this many prices are collected.",
+   "long": "",
+   "when": "200."
+  },
+  "sample_secs": {
+   "label": "Sampling interval",
+   "group": "pairs",
+   "unit": "seconds",
+   "short": "How often the pair prices are sampled.",
+   "long": "",
+   "when": "0.5."
+  }
+ }
 }

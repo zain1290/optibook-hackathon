@@ -56,7 +56,37 @@ class TradeTick:
 class InsertOrderResponse:
     success: bool
     order_id: Optional[int] = None
-    reason: str = ""  # sim only: why it was rejected
+    error_reason: Optional[str] = None  # real client field name
+
+    @property
+    def reason(self):  # older sim code reads .reason
+        return self.error_reason or ""
+
+
+@dataclass
+class AmendOrderResponse:
+    success: bool
+    error_reason: Optional[str] = None
+
+
+@dataclass
+class DeleteOrderResponse:
+    success: bool
+    error_reason: Optional[str] = None
+
+
+@dataclass
+class PriceChangeLimit:
+    absolute_change: float
+    relative_change: float
+
+
+@dataclass
+class SocialMediaFeed:
+    """A news post (real client: poll_new_social_media_feeds). meta_data is a free-form dict."""
+    timestamp: float = None
+    post: str = None
+    meta_data: dict = None
 
 
 @dataclass
@@ -67,3 +97,17 @@ class Instrument:
     # sim extras: which stock this listing belongs to, and whether it is the liquid primary
     underlying: str = ""
     is_primary: bool = True
+    # real client fields (None when not used)
+    instrument_type: Optional[str] = None      # STOCK, STOCK_OPTION, STOCK_FUTURE, INDEX_TRACKING_ETF, ...
+    price_change_limit: Optional[PriceChangeLimit] = None
+    expiry: Optional[float] = None             # sim seconds (real client: datetime)
+    option_kind: Optional[str] = None          # 'call' / 'put'
+    strike: Optional[float] = None
+    base_instrument_id: Optional[str] = None
+    interest_rate: Optional[float] = None
+    index_constituents: Optional[dict] = None  # ETF / index weights: instrument -> shares
+    index_divisor: Optional[float] = None
+    etf_cash_comp: Optional[float] = None
+    etf_multiplier: Optional[float] = None
+    instrument_group: Optional[str] = None
+    expired: bool = False

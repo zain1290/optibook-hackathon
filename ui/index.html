@@ -320,11 +320,11 @@ img.overview { width: 100%; border: 1px solid var(--rule-2); border-radius: 6px;
           <div class="chart" id="chPnl"></div>
         </div>
         <div class="panel">
-          <div class="head"><h3>Positions <button class="q" data-h="g-position">?</button></h3><span class="help">lots held per listing; the lines should mirror each other</span></div>
+          <div class="head"><h3>Positions <button class="q" data-h="g-position">?</button></h3><span class="help" id="posHelp">lots held per instrument</span></div>
           <div class="chart" id="chPos"></div>
         </div>
         <div class="panel">
-          <div class="head"><h3>Prices and our trades</h3><span class="help">mid price of each listing; ▲ we bought, ▼ we sold</span></div>
+          <div class="head"><h3>Prices and our trades</h3><span class="help" id="pxHelp">mid price of each listing; ▲ we bought, ▼ we sold</span></div>
           <div class="chart" id="chPx"></div>
         </div>
         <div class="panel">
@@ -358,7 +358,11 @@ img.overview { width: 100%; border: 1px solid var(--rule-2); border-radius: 6px;
           <div class="kv" id="monHealth"></div>
         </div>
         <div class="panel">
-          <div class="head"><h3>Events</h3><span class="help">settings changes, pauses, errors</span></div>
+          <div class="head"><h3>News <button class="q" data-h="g-news">?</button></h3><span class="help">social media posts from the exchange</span></div>
+          <div class="tablewrap" id="monNews" style="max-height:220px;overflow:auto"></div>
+        </div>
+        <div class="panel">
+          <div class="head"><h3>Events</h3><span class="help">settings changes, pauses, errors, reconnects</span></div>
           <div class="tablewrap" id="monEvents" style="max-height:240px;overflow:auto"></div>
         </div>
         <div class="panel stack">
@@ -451,10 +455,15 @@ function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage
 
 /* ------------------------------------------------------------------ copy */
 const STRATS = {
-  cross_arb: { label: "Safe start", text: "Only grabs clearly mispriced orders and hedges at once. Few trades, low risk. Use it first to check everything works." },
-  evolved: { label: "Main strategy", text: "Keeps buy and sell offers on the thin listing and hedges every trade on the busy one. Pick a version below." },
-  quote_hedge: { label: "Original, for comparison", text: "The first version of the main strategy, kept unchanged. Mostly useful in backtests." },
+  combo: { label: "Everything (recommended)", text: "Quotes every stock just inside the exchange's maker, picks off other teams' mistakes, steps aside on news, and prices options, futures or ETFs if any are listed." },
+  stock_mm: { label: "Stocks only", text: "The stock part of the recommended bot on its own. Good for a first careful run." },
+  deriv_arb: { label: "Options, futures, ETFs only", text: "Prices derivatives from their stocks and trades when the market is off, hedging in the stock. Does nothing if none are listed." },
+  evolved: { label: "Dual listing", text: "Only if the brief turns out to be one company listed twice: quotes the thin listing, hedges on the busy one. Pick a version below." },
+  cross_arb: { label: "Dual listing, safe start", text: "Only grabs clearly mispriced orders between two listings and hedges at once." },
+  pairs: { label: "Pairs trading", text: "Trades the gap between two related stocks. Lost money in the simulator after costs; test first." },
+  quote_hedge: { label: "Original dual listing bot", text: "Kept unchanged for comparison in backtests." },
 };
+const PAIR_STRATS = ["evolved", "cross_arb", "quote_hedge"];
 const VERSION_TEXT = {
   v0: "The original, unchanged.", v1: "Patient hedging inside the spread.", v2: "Fewer order changes; arbitrage on the thin side only.",
   v3: "Prices from fair value and real hedge cost.", v4: "Leans quotes only near the position limit.", v5: "Test only (simulator quirk). Use v6 or later.",
@@ -462,12 +471,17 @@ const VERSION_TEXT = {
   v9: "Same as v8.", v10: "Bigger quotes (15). Best if the busy spread is 2 ticks or more.",
 };
 const PRESETS = [
-  { name: "Safe start", strategy: "cross_arb", params: {}, why: "cross_arb with defaults" },
-  { name: "Recommended", strategy: "evolved", version: "v8", params: {}, why: "evolved v8" },
-  { name: "Wide spread", strategy: "evolved", version: "v10", params: {}, why: "evolved v10, quote size 15" },
-  { name: "Cautious", strategy: "evolved", version: "v8", params: { size: 5, min_profit: 0.8 }, why: "evolved v8, small quotes, more profit per trade" },
+  { name: "First live minutes", strategy: "stock_mm", params: { size: 5, take_edge: 0 }, why: "stocks only, 5-lot quotes, no picking off" },
+  { name: "Recommended", strategy: "combo", params: {}, why: "combo with defaults" },
+  { name: "News trader", strategy: "combo", params: { news_trade_size: 50 }, why: "combo, also trades 50 lots on clear news" },
+  { name: "Cautious", strategy: "combo", params: { size: 10, quote_edge: 2 }, why: "combo, smaller quotes further from fair value" },
+  { name: "Dual listing", strategy: "evolved", version: "v8", params: {}, why: "evolved v8, if the brief is a dual listing" },
 ];
 const ESSENTIAL = {
+  combo: ["position_limit", "size", "quote_edge", "take_edge", "news_trade_size", "max_ops_per_sec"],
+  stock_mm: ["position_limit", "size", "quote_edge", "take_edge", "news_trade_size", "max_ops_per_sec"],
+  deriv_arb: ["position_limit", "deriv_edge", "deriv_size", "vol", "hedge_band", "max_ops_per_sec"],
+  pairs: ["stock_pairs", "entry_z", "exit_z", "lots", "max_lots"],
   cross_arb: ["position_limit", "min_edge", "max_ops_per_sec"],
   quote_hedge: ["position_limit", "size", "edge", "take_min_edge", "max_ops_per_sec"],
   evolved: ["position_limit", "size", "min_profit", "max_unhedged", "take_min_edge", "max_ops_per_sec"],
@@ -479,7 +493,10 @@ const MODE_TEXT = {
   flatten: { title: "Close everything now", btn: "Close all positions", done: "Closing all positions" },
 };
 const SCEN_TEXT = {
-  crowded: "standard practice market", crowded_tight: "1-tick busy spread", crowded_sticky: "exchange traders keep their place",
+  bonafide: "8 stocks like the real practice market, with rival teams", bonafide_quiet: "the practice market as it looks today, no rivals",
+  bonafide_clones: "half the rivals run a copy of our bot", bonafide_informed: "some background traders know where prices go",
+  bonafide_leadlag: "thin stocks react late to their sector", bonafide_derivs: "adds an ETF, NVDA options and a future",
+  crowded: "dual listing practice market", crowded_tight: "1-tick busy spread", crowded_sticky: "exchange traders keep their place",
   crowded_clones: "half the rivals copy us", basic: "simple, no rivals", competitive: "2 rivals", hard: "two companies and a halt",
 };
 
@@ -573,7 +590,7 @@ function renderRunForm() {
   const val = n => n in saved ? saved[n] : n in fsaved ? fsaved[n] : n in defs ? defs[n] : flags[n];
   const changed = n => n in saved || n in fsaved;
   const all = trades ? [...Object.keys(defs), ...Object.keys(flags)] : [];
-  const ess = trades ? ESSENTIAL[strat].filter(n => all.includes(n)) : [];
+  const ess = trades ? (ESSENTIAL[strat] || []).filter(n => all.includes(n)) : [];
   const adv = all.filter(n => !ess.includes(n));
   const render = n => field(n, val(n), { hint: S.meta.strategies.evolved.flag_types[n], changed: changed(n) });
 
@@ -589,7 +606,7 @@ function renderRunForm() {
   if (m !== "flatten") runOpts.push(runField("period", num("run_period", runVal("period") ?? 0.1, 'min="0.02" step="0.05"')));
   if (trades) runOpts.push(runField("exit", sel("run_exit", [["net", "Close uncovered risk only"], ["all", "Close every position"], ["none", "Leave positions"]], runVal("exit") || "net"), { noUnit: true }));
   if (m === "live" || m === "observe") runOpts.push(runField("minutes", num("run_minutes", runVal("minutes"), 'min="0" step="1" placeholder="until you press Stop"')));
-  if (trades) runAdv.push(runField("pairs", `<input type="text" id="run_pairs" data-run="pairs" value="${esc(runVal("pairs") || "")}" placeholder="found automatically">`, { noUnit: true }));
+  if (trades && PAIR_STRATS.includes(strat)) runAdv.push(runField("pairs", `<input type="text" id="run_pairs" data-run="pairs" value="${esc(runVal("pairs") || "")}" placeholder="found automatically">`, { noUnit: true }));
   if (m !== "flatten") runAdv.push(runField("record_every", num("run_record_every", runVal("record_every") ?? 1, 'min="1"')));
 
   $("#essentials").innerHTML = (ess.length ? groupBlocks(ess, render) : "") +
@@ -597,7 +614,7 @@ function renderRunForm() {
   if (m === "sim") {
     const sv = k => store("sim." + k);
     $("#simFields").innerHTML = `<div class="group" style="margin-top:18px"><h3>Practice market</h3><div class="help">${esc(S.P.groups.find(g => g.id === "sim").intro)}</div><div class="fields">
-      ${runField("scenario", `<select id="sim_scenario" data-sim="scenario">${S.meta.scenarios.map(s => `<option value="${s}" ${(sv("scenario") || "crowded") === s ? "selected" : ""}>${s}: ${esc(SCEN_TEXT[s] || "")}</option>`).join("")}</select>`, { noUnit: true, changed: false })}
+      ${runField("scenario", `<select id="sim_scenario" data-sim="scenario">${S.meta.scenarios.map(s => `<option value="${s}" ${(sv("scenario") || "bonafide") === s ? "selected" : ""}>${s}: ${esc(SCEN_TEXT[s] || "")}</option>`).join("")}</select>`, { noUnit: true, changed: false })}
       ${runField("teams", `<input type="number" id="sim_teams" data-sim="teams" value="${sv("teams") ?? 12}" min="0" max="40">`, { changed: false })}
       ${runField("speed", `<select id="sim_speed" data-sim="speed">${[["1", "Real time"], ["5", "5x"], ["20", "20x"], ["0", "As fast as possible"]].map(([v, l]) => `<option value="${v}" ${String(sv("speed") ?? 1) === v ? "selected" : ""}>${l}</option>`).join("")}</select>`, { noUnit: true, changed: false })}
       ${runField("minutes", `<input type="number" id="sim_minutes" data-sim="minutes" value="${sv("minutes") ?? 10}" min="0.5" step="0.5">`, { changed: false })}
@@ -641,9 +658,9 @@ function buildRequest() {
     req.params = { ...(store("params." + req.strategy) || {}) };
     if (req.strategy === "evolved") { req.version = currentVersion(); Object.assign(req.params, store("flags." + req.version) || {}); }
     req.exit = store("run.exit") || "net";
-    if (store("run.pairs")) req.pairs = store("run.pairs");
+    if (store("run.pairs") && PAIR_STRATS.includes(req.strategy)) req.pairs = store("run.pairs");
   }
-  if (m === "sim") Object.assign(req, { sim: true, scenario: store("sim.scenario") || "crowded", teams: +(store("sim.teams") ?? 12),
+  if (m === "sim") Object.assign(req, { sim: true, scenario: store("sim.scenario") || "bonafide", teams: +(store("sim.teams") ?? 12),
     seed: +(store("sim.seed") ?? 0), minutes: +(store("sim.minutes") ?? 10), speed: +(store("sim.speed") ?? 1) });
   else if (m !== "flatten" && store("run.minutes")) req.minutes = +store("run.minutes");
   if (m !== "flatten") { req.period = +(store("run.period") ?? 0.1); req.record_every = +(store("run.record_every") ?? 1); }
@@ -820,14 +837,26 @@ function renderMonitor(data) {
   $("#monRunName").textContent = (S.view ? "past run: " : "") + data.run_dir.split("/").pop();
   const st = data.state || [], colors = [css("--s1"), css("--s2"), "#1c8a5a", "#7a5ad6"];
   chart($("#chPnl"), { series: [{ name: "PnL", color: css("--s1"), points: st.filter(r => r[1] != null).map(r => [mins(r[0]), r[1]]) }], zero: true });
-  const insts = [...new Set(st.flatMap(r => Object.keys(r[2] || {})))].sort();
+  // with many instruments, show the 4 with the biggest positions (identity stays readable with 4 colours)
+  const maxAbs = k => Math.max(0, ...st.map(r => Math.abs((r[2] || {})[k] || 0)));
+  const allInsts = [...new Set(st.flatMap(r => Object.keys(r[2] || {})))];
+  const insts = allInsts.sort((a, b) => maxAbs(b) - maxAbs(a) || a.localeCompare(b)).slice(0, 4).sort();
+  $("#posHelp").textContent = allInsts.length > 4 ? "lots held; the 4 instruments with the biggest positions" : "lots held per instrument";
   chart($("#chPos"), { series: insts.map((k, i) => ({ name: k, color: colors[i % 4], step: true, points: st.map(r => [mins(r[0]), (r[2] || {})[k] || 0]) })), zero: true, yfmt: v => fmt(v, 0) });
-  const mids = data.mids || {}, minst = Object.keys(mids).sort((a, b) => a.length - b.length);
+  const mids = data.mids || {}, paired = (data.meta?.pairs || []).length > 0;
+  let minst = Object.keys(mids).sort((a, b) => a.length - b.length);
+  if (!paired) {  // many stocks at different prices: compare % change since the start, 4 most traded
+    const nf = k => (data.fills || []).filter(f => f[1] === k).length;
+    minst = minst.sort((a, b) => nf(b) - nf(a) || a.localeCompare(b)).slice(0, 4).sort();
+  }
+  const base = k => mids[k]?.[0]?.[1] || 1, y = (k, v) => paired ? v : (v / base(k) - 1) * 100;
+  $("#pxHelp").textContent = paired ? "mid price of each listing; ▲ we bought, ▼ we sold" : "% change since the start, 4 most traded stocks; ▲ we bought, ▼ we sold";
   chart($("#chPx"), {
-    series: minst.map((k, i) => ({ name: k, color: colors[i % 4], step: true, points: mids[k].map(p => [mins(p[0]), p[1]]) })),
-    markers: (data.fills || []).filter(f => minst.includes(f[1])).slice(-200).map(f => ({ x: mins(f[0]), y: f[3], up: f[2] === "bid", color: colors[Math.max(0, minst.indexOf(f[1])) % 4] })),
-    height: 240,
+    series: minst.map((k, i) => ({ name: k, color: colors[i % 4], step: true, points: mids[k].map(p => [mins(p[0]), y(k, p[1])]) })),
+    markers: (data.fills || []).filter(f => minst.includes(f[1])).slice(-200).map(f => ({ x: mins(f[0]), y: y(f[1], f[3]), up: f[2] === "bid", color: colors[Math.max(0, minst.indexOf(f[1])) % 4] })),
+    height: 240, yfmt: paired ? undefined : v => fmt(v, 2) + "%",
   });
+  renderNews(data.news || [], t0);
   renderMetrics(data.metrics);
   renderAdvice(data);
   renderSettings(data);
@@ -848,11 +877,22 @@ function renderMetrics(m) {
       <td class="num">${ob[D + ":bid"] ?? "–"} / ${ob[D + ":ask"] ?? "–"}</td><td class="num">${p.net_delta}</td>
       <td class="num">${(p.market_trades?.[P] || [0])[0]} / ${(p.market_trades?.[D] || [0])[0]}</td></tr>`;
   }).join("");
-  $("#monPairs").innerHTML = `<table><thead><tr><th>Pair (busy / thin)</th><th class="num">Spread busy / thin, ticks${qh("g-spread")}</th><th class="num">Mispriced${qh("g-crossed")}</th>
+  const inst = Object.entries(m.instruments || {});
+  const irows = inst.map(([i, p]) => {
+    const q = p.our_quotes || {}, ob = p.others_at_or_better || {};
+    return `<tr><td>${esc(i)}</td><td class="num">${fmt(p.spread_ticks, 1)}</td><td class="num">${fmt(p.mid, 2)}</td><td class="num">${p.position}</td>
+      <td class="num">${q.bid ? q.bid[0] + " (" + q.bid[1] + ")" : "none"}</td><td class="num">${q.ask ? q.ask[0] + " (" + q.ask[1] + ")" : "none"}</td>
+      <td class="num">${ob.bid ?? "–"} / ${ob.ask ?? "–"}</td><td class="num">${(p.market_trades || [0])[0]}</td></tr>`;
+  }).join("");
+  const itable = inst.length ? `<table><thead><tr><th>Instrument</th><th class="num">Spread, ticks${qh("g-spread")}</th><th class="num">Mid${qh("g-mid")}</th><th class="num">Position${qh("g-position")}</th>
+    <th class="num">Our buy (lots)</th><th class="num">Our sell (lots)</th><th class="num">Rivals at our price or better, buy / sell${qh("g-queue")}</th><th class="num">Market trades</th></tr></thead><tbody>${irows}</tbody></table>` : "";
+  const ptable = rows ? `<table><thead><tr><th>Pair (busy / thin)</th><th class="num">Spread busy / thin, ticks${qh("g-spread")}</th><th class="num">Mispriced${qh("g-crossed")}</th>
     <th class="num">Our buy (lots)</th><th class="num">Our sell (lots)</th><th class="num">Rivals at our price or better, buy / sell${qh("g-queue")}</th>
-    <th class="num">Net delta${qh("g-net-delta")}</th><th class="num">Trades busy / thin</th></tr></thead><tbody>${rows}</tbody></table>`;
+    <th class="num">Net delta${qh("g-net-delta")}</th><th class="num">Trades busy / thin</th></tr></thead><tbody>${rows}</tbody></table>` : "";
+  $("#monPairs").innerHTML = ptable + (ptable && itable ? "<div style='height:14px'></div>" : "") + itable;
   const mk = m.markout_ticks || {}, tags = Object.keys(m.fills || {});
-  const TAG = { quote: "Our waiting quote was hit", hedge_passive: "Patient hedge", hedge: "Hedge that crossed the spread", arb_dual: "Arbitrage", flatten: "Closing positions", hedge_on_dual: "Emergency hedge on thin listing", arb_primary: "Arbitrage (busy side)" };
+  const TAG = { take: "Picked off a wrong quote", news: "Traded on news", deriv_take: "Mispriced derivative", delta_hedge: "Hedged derivative risk", pairs: "Pairs trade",
+    quote: "Our waiting quote was hit", hedge_passive: "Patient hedge", hedge: "Hedge that crossed the spread", arb_dual: "Arbitrage", flatten: "Closing positions", hedge_on_dual: "Emergency hedge on thin listing", arb_primary: "Arbitrage (busy side)" };
   $("#monFills").innerHTML = tags.length ? `<table><thead><tr><th>Why we traded</th><th class="num">Trades</th><th class="num">Lots</th><th class="num">Edge at trade${qh("g-edge")}</th>
     <th class="num">After 1 s${qh("g-markout")}</th><th class="num">After 5 s</th><th class="num">After 30 s</th></tr></thead><tbody>${tags.map(t => {
       const f = m.fills[t], v = h => mk[h]?.[t];
@@ -861,7 +901,8 @@ function renderMetrics(m) {
     }).join("")}</tbody></table>` : `<div class="empty">No trades in the last 10 seconds.</div>`;
   const o = m.orders || {}, ins = (m.latency_ms || {}).insert_order;
   const health = [["Orders per second", fmt(m.ops_per_sec, 1)], ["Rejected by exchange", o.rejected || 0], ["Held back by our budget", o.throttled || 0],
-    ["Order response time", ins ? fmt(ins.avg, 1) + " ms" : "–"], ["Bot loop time", fmt(m.loop_ms?.strategy_avg, 1) + " ms"], ["Recorder time", fmt(m.loop_ms?.recorder_avg, 1) + " ms"]];
+    ["Order response time", ins ? fmt(ins.avg, 1) + " ms" : "–"], ["Bot loop time", fmt(m.loop_ms?.strategy_avg, 1) + " ms"], ["Recorder time", fmt(m.loop_ms?.recorder_avg, 1) + " ms"],
+    ["Hourly Sharpe (estimate)", m.hourly_sharpe == null ? "–" : fmt(m.hourly_sharpe, 1)], ["Cash delta", m.cash_delta == null ? "–" : fmt(m.cash_delta, 0)], ["News posts seen", m.news_posts ?? 0]];
   $("#monHealth").innerHTML = health.map(([l, v]) => `<div><b>${esc(v)}</b><span>${l}</span></div>`).join("");
 }
 function renderAdvice(data) {
@@ -871,19 +912,28 @@ function renderAdvice(data) {
   if (!m) add("info", "Waiting for the first summary", "Advice appears about 10 seconds after the start.");
   else {
     const o = m.orders || {}, rej = Object.entries(o).filter(([k]) => k.startsWith("reject:"));
+    if ((data.events || []).some(e => e.kind === "disconnected")) add("warn", "The connection dropped at least once", "Another program or notebook may be logged in with the team account. Only one connection per team is allowed; the bot reconnects by itself, but each drop cancels all our orders.", "g-one-connection");
     if (o.rejected) add("bad", `The exchange refused ${o.rejected} order${o.rejected > 1 ? "s" : ""}`,
       `Reason: ${rej.map(([k]) => k.slice(7)).join(", ") || "see Events"}. If it mentions the position limit, lower Quote size or Soft limit; if it mentions the rate, lower Order budget.`, "g-reject");
     if (s.pause) add("info", "Trading is paused", "No new quotes are being placed. Hedging continues. Press Resume trading when ready.", "p-pause");
-    const limit = s.limit || 100;
-    Object.entries(st?.[2] || {}).forEach(([k, v]) => { if (Math.abs(v) >= 0.8 * limit) add("warn", `${k} position is ${v}, close to the limit of ${limit}`, "One side may stop quoting. Lower 'Lean only above' or Quote size.", "p-skew_start"); });
+    const limit = s.position_limit || s.limit || 100, stocks = "quote_edge" in s;
+    Object.entries(st?.[2] || {}).forEach(([k, v]) => { if (Math.abs(v) >= 0.8 * limit) add("warn", `${k} position is ${v}, close to the limit of ${limit}`,
+      stocks ? "Raise Inventory lean (skew_per_lot) or lower Pick-off size so positions recycle faster." : "One side may stop quoting. Lower 'Lean only above' or Quote size.", stocks ? "p-skew_per_lot" : "p-skew_start"); });
     Object.entries(m.pairs || {}).forEach(([name, p]) => {
       if (Math.abs(p.net_delta) > 20) add("warn", `Net delta is ${p.net_delta} on ${name}`, "Risk is not fully covered. Check the busy listing is trading; lower Max unhedged lots if this persists.", "g-net-delta");
       const sp = p.spread_ticks?.[name.split("/")[0]];
       if (sp != null && sp <= 1.2) add("info", "The busy listing's spread is about 1 tick", "Every hedge costs half a tick here. v8 with Quote size 10 is the safer choice.", "playbook");
     });
-    const q5 = (m.markout_ticks || {})["5s"]?.quote;
-    if (q5 != null && q5 < -0.3) add("warn", "Prices move against our quotes after we trade", `Quotes lose ${fmt(-q5, 2)} ticks 5 seconds later on average. Raise Minimum profit per trade (to about 0.8) or lower Quote size.`, "p-min_profit");
-    if ((o.throttled || 0) > 20) add("warn", "The bot is often held back by its order budget", "Fine occasionally. If constant, raise Loop period a little.", "g-throttle");
+    const q5 = (m.markout_ticks || {})["5s"]?.quote, t5 = (m.markout_ticks || {})["5s"]?.take, n5 = (m.markout_ticks || {})["5s"]?.news;
+    if (q5 != null && q5 < -0.3) add("warn", "Prices move against our quotes after we trade", stocks
+      ? `Quotes lose ${fmt(-q5, 2)} ticks 5 seconds later on average. Raise Distance from fair value (quote_edge) to 2, or lower Quote size.`
+      : `Quotes lose ${fmt(-q5, 2)} ticks 5 seconds later on average. Raise Minimum profit per trade (to about 0.8) or lower Quote size.`, stocks ? "p-quote_edge" : "p-min_profit");
+    if (t5 != null && t5 < -0.3) add("warn", "Picking off is losing", `Picked-off trades are ${fmt(-t5, 2)} ticks worse 5 seconds later. Raise Pick-off threshold (take_edge) to 2, or set it to 0.`, "p-take_edge");
+    if (n5 != null && n5 < 0) add("warn", "News trades are losing", "Prices are not following the news the way the words say. Set Trade on news (news_trade_size) to 0.", "p-news_trade_size");
+    if ((o.throttled || 0) > 20) add("warn", "The bot is often held back by its order budget", stocks
+      ? "Fine occasionally. If constant, set 'Only the widest stocks' (max_stocks) to 4, or raise Keep quotes in place (sticky_ticks)."
+      : "Fine occasionally. If constant, raise Loop period a little.", stocks ? "p-max_stocks" : "g-throttle");
+    if (m.news_posts && !(s.news_trade_size > 0) && stocks) add("info", `${m.news_posts} news post${m.news_posts > 1 ? "s" : ""} so far`, "After the run, check tools/news_impact.py (or the run report) to see if news moves prices. If it does, try Trade on news = 20 to 50.", "p-news_trade_size");
     const loop = m.loop_ms?.strategy_avg, per = +(S.live?.job?.info?.period || 0.1) * 1000;
     if (loop != null && loop > per * 0.8) add("warn", "The bot's loop is slow", `Each loop takes ${fmt(loop, 0)} ms. Raise Record every N loops to 2 or 3, or Loop period.`, "p-record_every");
   }
@@ -891,7 +941,8 @@ function renderAdvice(data) {
   if (m && !out.some(x => x.level === "warn" || x.level === "bad")) add("good", running ? "Everything looks healthy" : "No problems found in this run", running ? "Nothing needs your attention right now." : "");
   $("#advice").innerHTML = out.map(x => `<li class="${x.level}"><b>${esc(x.title)} ${x.h ? qh(x.h) : ""}</b>${esc(x.text)}</li>`).join("");
 }
-const SET_MAIN = ["size", "min_profit", "take_min_edge", "min_edge", "soft", "limit", "skew", "edge", "penny", "hedge_when_paused"];
+const SET_MAIN = ["size", "quote_edge", "take_edge", "news_trade_size", "position_limit", "soft_limit", "skew_per_lot", "deriv_edge",
+  "min_profit", "take_min_edge", "min_edge", "soft", "limit", "skew", "edge", "penny", "hedge_when_paused"];
 function renderSettings(data) {
   const s = data.settings;
   $("#setPanel").hidden = !s;
@@ -923,9 +974,14 @@ $("#btnApply").onclick = async () => {
   try { await setSetting(ch); S.settingsDraft = {}; toast("Applied: " + Object.entries(ch).map(([k, v]) => `${pinfo(k).label} ${v}`).join(", ")); document.activeElement?.blur(); poll(); } catch {}
 };
 $("#btnRevert").onclick = () => { S.settingsDraft = {}; document.activeElement?.blur(); renderMonitor(); };
+function renderNews(news, t0) {
+  const rows = news.slice().reverse().map(([t, post]) => `<tr><td class="num">${fmt(t - t0, 0)} s</td><td>${esc(post || "")}</td></tr>`).join("");
+  $("#monNews").innerHTML = rows ? `<table><tbody>${rows}</tbody></table>` : `<div class="empty">No posts yet. They appear here as the exchange publishes them.</div>`;
+}
 function renderEvents(evs, t0) {
   const NAME = { settings: "Settings changed", error: "Error", start: "Started", stop: "Stopped", paused_by_settings: "Paused", resumed_by_settings: "Resumed",
-    manual_flatten: "Flattened", quotes_pulled: "Quotes pulled", flatten_all: "Closing all positions", flatten_net: "Closing uncovered risk", instrument_changed: "Instrument changed", stream_disabled: "Data stream off" };
+    manual_flatten: "Flattened", quotes_pulled: "Quotes pulled", disconnected: "Connection lost", reconnected: "Reconnected", news_seen: "News",
+    news: "News read by the bot", delta_hedge: "Derivative hedge", pairs: "Pairs trade", flatten_all: "Closing all positions", flatten_net: "Closing uncovered risk", instrument_changed: "Instrument changed", stream_disabled: "Data stream off" };
   const rows = evs.slice().reverse().map(e => {
     const d = e.kind === "settings" ? Object.entries(e.changes || {}).map(([k, v]) => `${pinfo(k).label}: ${v[0]} to ${v[1]}`).join(", ")
       : e.kind === "error" ? `${e.where}: ${e.error}` : e.reason || e.stream || e.i || "";
@@ -1110,8 +1166,9 @@ async function poll() {
 (async function boot() {
   try { [S.meta, S.P] = await Promise.all([api("/api/meta"), api("/params.json")]); }
   catch (e) { toast("Could not load the panel: " + e.message, true); return; }
-  S.strategy = store("strategy") || "evolved";
-  $("#strategyChoices").innerHTML = ["cross_arb", "evolved", "quote_hedge"].filter(s => S.meta.strategies[s]).map(s =>
+  S.strategy = store("strategy") || "combo";
+  if (!S.meta.strategies[S.strategy]) S.strategy = "combo";
+  $("#strategyChoices").innerHTML = ["combo", "stock_mm", "deriv_arb", "evolved", "cross_arb", "pairs"].filter(s => S.meta.strategies[s]).map(s =>
     `<button class="choice" data-s="${s}"><b>${esc(STRATS[s].label)}</b><span class="code" style="font-family:var(--mono);font-size:11px;color:var(--ink-3);margin:0">${s}</span><span>${esc(STRATS[s].text)}</span></button>`).join("");
   $$("#strategyChoices .choice").forEach(b => b.onclick = () => { S.strategy = b.dataset.s; store("strategy", S.strategy); renderRunForm(); });
   $("#presetChips").innerHTML = PRESETS.map((p, i) => `<button class="chip" data-i="${i}" title="${esc(p.why)}">${esc(p.name)}</button>`).join(" ");
@@ -1120,7 +1177,7 @@ async function poll() {
   $("#selVersion").innerHTML = vers.map(v => `<option value="${v}">${v}: ${esc(VERSION_TEXT[v] || "")}</option>`).join("");
   $("#selVersion").value = store("version") || "v8";
   $("#bScenario").innerHTML = S.meta.scenarios.map(s => `<option value="${s}">${s}: ${esc(SCEN_TEXT[s] || "")}</option>`).join("");
-  $("#bScenario").value = "crowded";
+  $("#bScenario").value = "bonafide";
   if (!S.meta.optibook) {
     $("#optibookNote").hidden = false;
     $("#optibookNote").textContent = "This computer does not have the exchange's Optibook client, so only Rehearse is available here. On the hackathon machines all four options work.";

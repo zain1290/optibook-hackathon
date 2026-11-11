@@ -5,3 +5,4 @@ books.csv
 *.log
 logs/
 settings.json
+dist/

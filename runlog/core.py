@@ -11,6 +11,7 @@ Folder layout (logs/<YYYYmmdd-HHMMSS>_<strategy>_<mode>/):
   instruments.jsonl instrument reference data whenever it changes (e.g. paused / unpaused)
   metrics.jsonl     rolling monitor every metrics_period seconds (spreads, crosses, competition, markouts...)
   events.jsonl      decisions (quote targets, arbs, hedges), settings changes, errors with traceback, start/stop
+  news.jsonl        every social media post the exchange published, with the mids of every instrument then
   console.log       everything printed to the terminal
   notes.md          your own observations (template created per run)
 """
@@ -90,7 +91,7 @@ class Tee:
 
 
 # ----------------------------------------------------------------------------- run folder
-STREAMS = ["book", "ticks", "orders", "fills", "own_orders", "state", "instruments", "metrics", "events"]
+STREAMS = ["book", "ticks", "orders", "fills", "own_orders", "state", "instruments", "metrics", "events", "news"]
 
 NOTES_TEMPLATE = """# Run notes
 
@@ -192,6 +193,7 @@ class LoggingExchange:
         self._e = e
         self._run = run
         self._next_tag = None
+        self._news, self._news_cur = [], {"strategy": 0, "recorder": 0}  # one feed, two readers
         self.order_info = {}  # order_id -> {inst, side, price, volume, order_type, tag, t}
         self.call_stats = defaultdict(lambda: [0, 0.0, 0.0])  # method -> [n, total_ms, max_ms]
         self.order_counts = Counter()  # action / reject reason counters for the monitor
@@ -205,6 +207,34 @@ class LoggingExchange:
             self.order_counts[kind] += 1
         else:
             self._run.event(kind, **data)
+
+    # news: the exchange hands each post out once. The strategy and the recorder both need every post,
+    # so the proxy fetches them, logs them, and gives each reader its own cursor.
+    def _pull_news(self):
+        fn = getattr(self._e, "poll_new_social_media_feeds", None)
+        if fn is None:
+            return
+        try:
+            new = self._timed("poll_new_social_media_feeds", fn) or []
+        except Exception as ex:
+            self._run.error("news", ex)
+            return
+        for p in new:
+            self._news.append(p)
+            row = to_jsonable(p)
+            self._run.write("news", row if isinstance(row, dict) else {"raw": row})
+
+    def _read_news(self, who):
+        self._pull_news()
+        k = self._news_cur[who]
+        self._news_cur[who] = len(self._news)
+        return self._news[k:]
+
+    def poll_new_social_media_feeds(self):
+        return self._read_news("strategy")
+
+    def news_for_recorder(self):
+        return self._read_news("recorder")
 
     def _timed(self, name, fn, *a, **k):
         t0 = time.perf_counter()
@@ -250,7 +280,7 @@ class LoggingExchange:
                 ok = None  # client returned something we don't recognise; resp is logged in full
             reason = None
             if ok is False and err is None:
-                reason = (getattr(resp, "reason", None) or getattr(resp, "error", None)
+                reason = (getattr(resp, "error_reason", None) or getattr(resp, "reason", None) or getattr(resp, "error", None)
                           or getattr(resp, "message", None) or "rejected")
             self.order_counts[action] += 1
             if ok is False:

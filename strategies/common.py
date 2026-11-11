@@ -7,8 +7,9 @@ class RateBudget:
     """Client-side rate limiter. Stay under the exchange limit so orders are never rejected.
     clock: callable returning seconds (sim time in the simulator, time.monotonic live)."""
 
-    def __init__(self, max_ops_per_sec=20, clock=time.monotonic):
+    def __init__(self, max_ops_per_sec=20, clock=time.monotonic, reserve=0):
         self.max, self.clock, self.ops = max_ops_per_sec, clock, deque()
+        self.reserve = reserve  # ops per second kept free for URGENT actions (pick-offs, safety cancels)
 
     def _trim(self):
         now = self.clock()
@@ -19,9 +20,9 @@ class RateBudget:
         self._trim()
         return self.max - len(self.ops)
 
-    def take(self, n=1):
+    def take(self, n=1, urgent=True):
         self._trim()
-        if len(self.ops) + n > self.max:
+        if len(self.ops) + n > self.max - (0 if urgent else self.reserve):
             return False
         now = self.clock()
         self.ops.extend([now] * n)
@@ -44,8 +45,12 @@ class Ctx:
         if self._log:
             self._log(kind, **data)
 
-    def _take(self):
-        if self.budget.take():
+    # actions that protect us or make money right now may use the reserved part of the order budget
+    URGENT = {None, "take", "cancel_stale", "news_pull", "news", "clear_for_hedge", "delta_hedge", "flatten",
+              "hedge", "hedge_on_dual", "arb", "deriv_take", "pairs"}
+
+    def _take(self, tag=None):
+        if self.budget.take(1, urgent=tag in self.URGENT):
             return True
         self.log("throttled")  # counted, not written line by line
         return False
@@ -93,7 +98,7 @@ class Ctx:
         return max(0, self.limit + pos - pending)
 
     def ioc(self, i, side, price_ticks, volume, tag=None):
-        if volume <= 0 or not self._take():
+        if volume <= 0 or not self._take(tag):
             return None
         if self._tag:
             self._tag(tag)
@@ -101,7 +106,7 @@ class Ctx:
                                    order_type="ioc")
 
     def limit_order(self, i, side, price_ticks, volume, tag=None):
-        if volume <= 0 or not self._take():
+        if volume <= 0 or not self._take(tag):
             return None
         if self._tag:
             self._tag(tag)
@@ -109,21 +114,21 @@ class Ctx:
                                    order_type="limit")
 
     def delete(self, i, order_id, tag=None):
-        if not self._take():
+        if not self._take(tag):
             return False
         if self._tag:
             self._tag(tag)
         return self.e.delete_order(i, order_id=order_id)
 
     def delete_all(self, i, tag=None):
-        if not self._take():
+        if not self._take(tag):
             return False
         if self._tag:
             self._tag(tag)
         return self.e.delete_orders(i)
 
     def amend(self, i, order_id, volume, tag=None):
-        if not self._take():
+        if not self._take(tag):
             return False
         if self._tag:
             self._tag(tag)
@@ -171,9 +176,12 @@ def hedge_net(ctx: Ctx, primary, dual, positions, max_slip_ticks=2, max_unhedged
     return vol
 
 
-def flatten_net(e, pairs, slip_ticks=5):
+def flatten_net(e, pairs, slip_ticks=5, others=()):
     """Exit mode 'net': cancel everything and close only the UNHEDGED part (primary + dual net delta),
-    trading the liquid primary. A hedged pair (long dual / short primary) has no price risk."""
+    trading the liquid primary. A hedged pair (long dual / short primary) has no price risk.
+    `others`: instruments outside any pair (single stocks): those are closed completely."""
+    if others:
+        flatten_all(e, list(others), slip_ticks)
     ctx = Ctx(e)
     ctx.log("flatten_net", positions=e.get_positions())
     for P, D in pairs:

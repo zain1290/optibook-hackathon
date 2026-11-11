@@ -2,12 +2,17 @@
 
 Live (on the day):
   python run_live.py --observe                         # trade nothing, just record the market (do this first)
-  python run_live.py --strategy cross_arb
-  python run_live.py --strategy quote_hedge --pairs ASML:ASML_DUAL -p edge=1
+  python run_live.py --strategy combo                  # stocks + any derivatives, one connection
+  python run_live.py --strategy stock_mm -p size=10    # stocks only
+  python run_live.py --strategy evolved --pairs ASML:ASML_DUAL   # if the brief turns out to be a dual listing
   python run_live.py --flatten                         # panic button: cancel all + close all, then exit
 
+ONE CONNECTION PER TEAM: a second program (or a teammate's notebook) connecting with the team login kicks
+this one off, and the exchange then cancels all its orders. This runner reconnects by itself, but only run
+one program per team. Teammates watch the web visualizer instead.
+
 Same pipeline offline (tests logging, monitor and settings before Thursday):
-  python run_live.py --sim crowded --teams 12 --strategy quote_hedge --minutes 10
+  python run_live.py --sim bonafide --teams 12 --strategy combo --minutes 10
 
 While it runs: edit the run's settings.json (path printed at start) to change parameters live,
 or set "pause": true / "flatten": true. Ctrl+C stops, cancels orders and flattens (unless --no-flatten-on-exit).
@@ -18,6 +23,7 @@ import os
 import sys
 import time
 
+from optisim.scenarios import SCENARIOS
 from run_sim import parse_params
 from runlog import LoggingExchange, Recorder, Run, Settings, Tee, environment_info, to_jsonable
 from strategies import STRATEGIES
@@ -39,13 +45,78 @@ def detect_pairs(instruments):
     return pairs
 
 
+LOCK = os.path.join(BASE, "logs", "LIVE_CONNECTION.lock")
+
+
+def _pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def take_live_lock(force=False):
+    """Only one program per team may hold the exchange connection. Refuse to start a second one."""
+    os.makedirs(os.path.dirname(LOCK), exist_ok=True)
+    if os.path.exists(LOCK) and not force:
+        try:
+            pid = int(open(LOCK).read().split()[0])
+        except Exception:
+            pid = -1
+        if pid > 0 and _pid_alive(pid) and pid != os.getpid():
+            raise SystemExit(f"Another live program (pid {pid}) already holds the team's exchange connection.\n"
+                             "Starting a second one would kick it off and cancel all its orders.\n"
+                             "Stop it first, or pass --force if you are sure it is dead.")
+    with open(LOCK, "w") as f:
+        f.write(f"{os.getpid()} {time.time()}")
+
+
+def release_live_lock():
+    try:
+        if os.path.exists(LOCK) and open(LOCK).read().split()[0] == str(os.getpid()):
+            os.remove(LOCK)
+    except Exception:
+        pass
+
+
+def ensure_connected(e, run, state):
+    """Reconnect if another connection kicked us off or the link dropped. Returns True when connected.
+    After a drop the exchange has cancelled our orders (Cancel On Disconnect); strategies rebuild their
+    quotes from get_outstanding_orders / get_positions on the next loop, so nothing else is needed."""
+    check = getattr(e, "is_connected", None)
+    try:
+        ok = check() if callable(check) else True
+    except Exception:
+        ok = False
+    if ok:
+        return True
+    now = time.time()
+    if now - state.get("last_try", 0) < state.get("backoff", 0.5):
+        return False
+    state["last_try"] = now
+    state["drops"] = state.get("drops", 0) + 1
+    run.event("disconnected", drops=state["drops"])
+    print(f"connection lost (#{state['drops']}): orders were cancelled by the exchange; reconnecting")
+    try:
+        e.connect()
+        state["backoff"] = 0.5
+        run.event("reconnected", drops=state["drops"])
+        print("reconnected")
+        return True
+    except Exception as ex:
+        state["backoff"] = min(10.0, state.get("backoff", 0.5) * 2)
+        run.error("reconnect", ex)
+        return False
+
+
 def make_session(a):
     """Returns (exchange, clock, wait, info). wait(seconds) sleeps live, advances the market in the sim."""
     if a.sim:
         from optisim import SimExchange, build
         from optisim.market import Limits
-        from optisim.scenarios import TEAM_LIMITS
         m, _ = build(a.sim, a.seed, n_teams=a.teams)
+        TEAM_LIMITS = m.team_limits
         m.add_account("us", Limits(**TEAM_LIMITS))
         e = SimExchange(m, "us")
         wall0 = time.time()
@@ -67,7 +138,7 @@ def make_session(a):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--strategy", default="cross_arb", choices=list(STRATEGIES))
+    ap.add_argument("--strategy", default="combo", choices=list(STRATEGIES))
     ap.add_argument("--observe", action="store_true", help="record only, send no orders")
     ap.add_argument("--pairs", help="comma list of PRIMARY:DUAL, primary = the LIQUID listing")
     ap.add_argument("--period", type=float, default=0.15, help="seconds between loops")
@@ -82,8 +153,11 @@ def main():
     ap.add_argument("--no-flatten-on-exit", action="store_true", help="same as --exit none")
     ap.add_argument("--exit", choices=["all", "net", "none"], default="net",
                     help="on stop: close everything (all), only unhedged delta (net, default), or nothing")
-    ap.add_argument("--sim", choices=["basic", "competitive", "hard", "crowded", "crowded_tight", "crowded_sticky", "crowded_clones"], help="run offline in the simulator")
+    ap.add_argument("--sim", choices=list(SCENARIOS), help="run offline in the simulator")
     ap.add_argument("--teams", type=int, default=12)
+    ap.add_argument("--force", action="store_true", help="live: start even if the connection lock is held")
+    ap.add_argument("--kick-after", type=float, default=None,
+                    help="sim only: simulate a teammate connecting after N seconds (tests reconnect)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--speed", type=float, default=0.0,
                     help="sim only: 1 = real time (rehearsal), 5 = 5x faster, 0 = as fast as possible")
@@ -91,6 +165,8 @@ def main():
     if a.sim and a.minutes is None:
         a.minutes = 10
 
+    if not a.sim:
+        take_live_lock(a.force)
     e, clock, wait, sess = make_session(a)
     mode = "observe" if a.observe else ("flatten" if a.flatten else a.strategy)
     run = Run(a.logdir, mode, sess["mode"], clock)
@@ -98,6 +174,10 @@ def main():
     proxy = LoggingExchange(e, run)
     instruments = e.get_instruments()
     ids = sorted(instruments)
+    try:
+        tradable = sorted(getattr(e, "get_tradable_instruments", e.get_instruments)())
+    except Exception:
+        tradable = ids
     pairs = [tuple(p.split(":")) for p in a.pairs.split(",")] if a.pairs else detect_pairs(instruments)
 
     strat, settings = None, None
@@ -119,7 +199,11 @@ def main():
                     "time_unit": "seconds; t = unix time live, sim seconds in --sim"})
     print(f"run folder: {run.dir}")
     print("instruments:", {k: (getattr(v, 'tick_size', None), getattr(v, 'paused', None)) for k, v in instruments.items()})
-    print("pairs (primary, dual):", pairs, "<- CHECK the primary is the liquid one")
+    if pairs:
+        print("pairs (primary, dual):", pairs, "<- CHECK the primary is the liquid one")
+    print(f"tradable now: {tradable}")
+    if strat is not None and a.strategy in ("evolved", "quote_hedge", "cross_arb") and not pairs:
+        print("WARNING: this strategy trades dual listings but no pairs were found. Use --strategy combo / stock_mm.")
     if settings:
         print(f"live settings file: {settings.path}")
     run.event("start", mode=mode, pairs=pairs)
@@ -138,6 +222,8 @@ def main():
         strat.end_time = t_end  # lets the strategy wind down inventory before the end
     n, was_paused, reason = 0, False, "time limit"
     pause_ctx = None
+    conn = {}
+    kick_at = None if a.kick_after is None or market is None else clock() + a.kick_after
     try:
         stop_file = os.path.join(run.dir, "STOP")  # created by the control panel (or by hand) to stop cleanly
         while t_end is None or clock() < t_end:
@@ -146,6 +232,14 @@ def main():
                 reason = "stop requested"
                 print("stop requested")
                 break
+            if kick_at is not None and clock() >= kick_at:  # sim: a teammate's notebook logs in
+                from optisim import SimExchange
+                SimExchange(market, "us")
+                kick_at = None
+                print("sim: another connection logged in with our account (we get kicked)")
+            if not ensure_connected(e, run, conn):
+                wait(0.5 if sess["mode"] == "live" else a.period)
+                continue
             if strat is not None:
                 settings.poll()
                 fl = settings.flags
@@ -173,6 +267,8 @@ def main():
                 except Exception as ex:  # one bad response must never kill the bot
                     run.error("strategy.step", ex)
                     print("step error:", repr(ex))
+                    if isinstance(ex, ConnectionError):
+                        ensure_connected(e, run, conn)
             loop_ms = (time.perf_counter() - t0) * 1000
             n += 1
             if n % a.record_every == 0:
@@ -190,15 +286,21 @@ def main():
     finally:
         try:
             exit_mode = "none" if a.no_flatten_on_exit else a.exit
-            if strat is not None and exit_mode == "all":
-                flatten_all(proxy, ids)
-            elif strat is not None and exit_mode == "net":
-                flatten_net(proxy, pairs)
-            elif strat is not None:
-                for i in ids:
-                    proxy.delete_orders(i)
-            if sess["mode"] == "sim":
-                wait(0.5)
+            others = [i for i in tradable if not any(i in p for p in pairs)]
+            for attempt in range(8):  # retry: closing orders can be rate-limited or only partly filled
+                if strat is not None and exit_mode == "all":
+                    flatten_all(proxy, ids)
+                elif strat is not None and exit_mode == "net":
+                    flatten_net(proxy, pairs, others=others)
+                elif strat is not None:
+                    for i in ids:
+                        proxy.delete_orders(i)
+                wait(0.5 if sess["mode"] == "sim" else 0.4)
+                pos = e.get_positions()
+                left = {i: v for i, v in pos.items() if v and (exit_mode == "all" or i in others)}
+                if strat is None or exit_mode == "none" or not left:
+                    break
+                print(f"still open after close attempt {attempt + 1}: {left}")
             rec.snapshot()
             final = rec.write_state(clock(), force=True)
             rec.emit_metrics(clock())
@@ -206,7 +308,9 @@ def main():
             run.error("shutdown", ex)
             final = {}
         if market is not None:  # sim only: the true leaderboard (on the day, read it off the screen)
-            board = sorted(({"name": k, "pnl": round(market.pnl(k), 2), "volume": acc.volume_traded,
+            from optisim.market import hourly_sharpe
+            board = sorted(({"name": k, "pnl": round(market.pnl(k), 2), "pnl_last": round(market.pnl(k, "last"), 2),
+                             "hourly_sharpe": hourly_sharpe(acc.equity_curve), "volume": acc.volume_traded,
                              "max_abs_net_delta": acc.max_abs_delta}
                             for k, acc in market.accounts.items() if k == "us" or k.startswith("team")),
                            key=lambda r: -r["pnl"])
@@ -214,7 +318,9 @@ def main():
             run.update_meta(leaderboard=board, rank=rank, n_competitors=len(board))
             print(f"rank {rank}/{len(board)} | top: " + ", ".join(f"{r['name']} {r['pnl']}" for r in board[:3]))
         run.event("stop", reason=reason, loops=n)
-        run.update_meta(t_end=clock(), stop_reason=reason, loops=n, final=final,
+        if sess["mode"] == "live":
+            release_live_lock()
+        run.update_meta(t_end=clock(), stop_reason=reason, loops=n, final=final, reconnects=conn.get("drops", 0),
                         rows={s: w.n for s, w in run.w.items()}, errors=run.counters["errors"])
         run.close()
         print(f"final: {final}")

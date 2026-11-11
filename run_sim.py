@@ -10,6 +10,7 @@ import sys
 import time
 
 from optisim import attach, build
+from optisim.scenarios import SCENARIOS
 from strategies import STRATEGIES
 
 
@@ -55,7 +56,7 @@ def run_one(strategy, scenario, seed, minutes, every, params, n_teams=12, exit_m
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--strategy", default="cross_arb", choices=list(STRATEGIES) + ["none"])
-    ap.add_argument("--scenario", default="basic", choices=["basic", "competitive", "hard", "crowded", "crowded_tight", "crowded_sticky", "crowded_clones"])
+    ap.add_argument("--scenario", default="basic", choices=list(SCENARIOS))
     ap.add_argument("--teams", type=int, default=12, help="competitor count for --scenario crowded")
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--minutes", type=float, default=10)

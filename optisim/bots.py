@@ -111,3 +111,162 @@ class StrategyActor(Actor):
 
     def act(self, m):
         self.strategy.step(self.e)
+
+
+# ----------------------------------------------------------------------------- Bona Fide practice market
+class LayeredMakerBot(Actor):
+    """The big exchange maker seen on the Bona Fide visualizer: one account quoting several stocks,
+    3 levels per side (e.g. 3000 / 2000 / 1000 lots, best level largest), a fixed number of ticks wide.
+    lag_steps > 0 quotes around an OLD fair value (slow to react to news / sector moves)."""
+
+    def __init__(self, name, insts, half_spread_ticks, sizes=(3000, 2000, 1000), act_every=2, lag_steps=0,
+                 keep_queue=True, size_jitter=0.02):
+        self.name, self.insts = name, list(insts)
+        self.hs = half_spread_ticks if isinstance(half_spread_ticks, dict) else {i: half_spread_ticks for i in insts}
+        self.sizes = sizes if isinstance(sizes, dict) else {i: sizes for i in insts}
+        self.act_every, self.lag, self.keep_queue, self.jit = act_every, lag_steps, keep_queue, size_jitter
+        self._last = {}
+
+    def _fair(self, m, inst):
+        ins = m.instruments[inst]
+        if self.lag and ins.underlying in m.stocks:
+            return m.lagged_fv(ins.underlying, self.lag)
+        return m.fv(inst)
+
+    def act(self, m):
+        for inst in self.insts:
+            ins = m.instruments[inst]
+            if ins.paused or ins.expired:
+                continue
+            c = self._fair(m, inst) / m.tick(inst)
+            hs = self.hs[inst]
+            bid0, ask0 = math.floor(c - hs + 0.5), math.ceil(c + hs - 0.5)
+            if ask0 <= bid0:
+                ask0 = bid0 + 1
+            rest = m.resting(self.name, inst)
+            if self.keep_queue and self._last.get(inst) == (bid0, ask0) and {o.side for o in rest} == {"bid", "ask"}:
+                continue  # unchanged: keep queue position, only top up what was traded away
+            self._last[inst] = (bid0, ask0)
+            m.cancel_all(self.name, inst, charge=False)
+            for k, size in enumerate(self.sizes[inst]):
+                v = max(1, int(size * (1 - m.rng.uniform(0, self.jit))))
+                m.submit(self.name, inst, "bid", bid0 - k, v, charge=False)
+                m.submit(self.name, inst, "ask", ask0 + k, v, charge=False)
+
+
+class LotTakerBot(Actor):
+    """Background flow seen on the visualizer: fixed 20-lot trades at the best price.
+    informed: share of trades that go WITH the next fair-value move instead of random (adverse selection)."""
+
+    def __init__(self, name, insts, rate_per_sec=0.2, lot=20, informed=0.0, dt=0.1):
+        self.name, self.insts, self.lot, self.informed = name, list(insts), lot, informed
+        self.p = rate_per_sec * dt  # chance per instrument per step
+
+    def act(self, m):
+        for inst in self.insts:
+            ins = m.instruments[inst]
+            if ins.paused or ins.expired or m.rng.random() > self.p:
+                continue
+            b = m.books[inst]
+            bid, ask = b.best("bid"), b.best("ask")
+            if bid is None or ask is None:
+                continue
+            if self.informed and m.rng.random() < self.informed:
+                fv = m.fv(inst) / m.tick(inst)
+                side = "bid" if fv > (bid + ask) / 2 else "ask"
+            else:
+                side = m.rng.choice(("bid", "ask"))
+            px = ask if side == "bid" else bid
+            m.submit(self.name, inst, side, px, self.lot, ioc=True, charge=False)
+
+
+NEWS_TEMPLATES = {
+    1: ["{n} smashes earnings expectations, raises full-year guidance",
+        "Reports: hyperscaler signs multi-billion order with {n}",
+        "{n} unveils next-gen chip, analysts call it a breakthrough",
+        "Analyst upgrades {n} to Strong Buy, sees 30% upside"],
+    -1: ["{n} misses revenue estimates, shares slide after hours",
+         "Export restrictions could hit {n} sales, sources say",
+         "{n} CFO resigns unexpectedly",
+         "Short seller publishes report questioning {n} accounting"],
+    0: ["{n} to present at industry conference next week",
+        "{n} CEO spotted at coffee shop, says 'busy times'",
+        "Retail investors keep talking about {n} on forums"],
+}
+SECTOR_TEMPLATES = {1: "AI spending boom continues: {s} names rally", -1: "Sell-off in {s} as demand fears grow"}
+
+
+class NewsBot(Actor):
+    """Publishes social media posts. Real news moves fair value by `size` (fraction of price), after
+    `delay` seconds; noise posts move nothing. Sector posts move every stock in the sector."""
+
+    def __init__(self, name, stocks, sectors=None, every_s=(30, 90), size=(0.005, 0.02), delay=(0.3, 1.5),
+                 noise_share=0.35, sector_share=0.2, seed=0, dt=0.1):
+        import random
+        self.name, self.stocks, self.sectors = name, list(stocks), dict(sectors or {})
+        self.every, self.size, self.delay = every_s, size, delay
+        self.noise, self.sector_share, self.dt = noise_share, sector_share, dt
+        self.r = random.Random(seed + 991)
+        self.next_t = self.r.uniform(*every_s) / 3
+
+    def act(self, m):
+        if m.t < self.next_t:
+            return
+        self.next_t = m.t + self.r.uniform(*self.every)
+        u = self.r.random()
+        if u < self.noise:
+            n = self.r.choice(self.stocks)
+            m.publish(self.r.choice(NEWS_TEMPLATES[0]).format(n=n), {"source": "newswire"})
+            return
+        sign = self.r.choice((1, -1))
+        if self.sectors and u < self.noise + self.sector_share:
+            sec = self.r.choice(sorted(self.sectors))
+            mag = self.r.uniform(*self.size) * 0.6
+            d = self.r.uniform(*self.delay)
+            m.publish(SECTOR_TEMPLATES[sign].format(s=sec), {"source": "newswire"},
+                      [(d, st, sign * mag * m.stocks[st].fv) for st in self.sectors[sec]])
+            return
+        n = self.r.choice(self.stocks)
+        mag = self.r.uniform(*self.size)
+        m.publish(self.r.choice(NEWS_TEMPLATES[sign]).format(n=n), {"source": "newswire"},
+                  [(self.r.uniform(*self.delay), n, sign * mag * m.stocks[n].fv)])
+
+
+class DerivMakerBot(Actor):
+    """Quotes options / futures / ETFs around their true value with a noisy view:
+    options at a vol that wanders around the true vol, ETFs and futures off a lagged underlying."""
+
+    def __init__(self, name, insts, half_spread_ticks=3, size=50, levels=2, vol_noise=0.04, lag_steps=10,
+                 act_every=5):
+        self.name, self.insts, self.hs, self.size, self.levels = name, list(insts), half_spread_ticks, size, levels
+        self.vol_noise, self.lag, self.act_every = vol_noise, lag_steps, act_every
+        self.vol_bias = {}
+
+    def _theo(self, m, ins):
+        from strategies import pricing
+        lag = lambda st: m.lagged_fv(st, self.lag) if st in m.stocks else m.fv(st)
+        if ins.instrument_type == "INDEX_TRACKING_ETF":
+            return pricing.etf_fair_value({k: lag(k) for k in ins.index_constituents}, ins.index_constituents,
+                                          ins.index_divisor or 1, ins.etf_cash_comp or 0, ins.etf_multiplier or 1)
+        s = lag(ins.base_instrument_id)
+        tau = max(0.0, (ins.expiry - m.t) / pricing.SECONDS_PER_YEAR_SIM)
+        if ins.instrument_type in ("STOCK_FUTURE", "INDEX_FUTURE"):
+            return pricing.future_fair_value(s, ins.interest_rate or 0, tau)
+        b = self.vol_bias.get(ins.instrument_id, 0.0)
+        b = 0.98 * b + m.rng.gauss(0, self.vol_noise * 0.2)  # slowly wandering vol mispricing
+        self.vol_bias[ins.instrument_id] = b
+        vol = max(0.02, m.true_vol.get(ins.instrument_id, 0.3) + b)
+        return pricing.bs_price(s, ins.strike, tau, vol, ins.interest_rate or 0, ins.option_kind)
+
+    def act(self, m):
+        for inst in self.insts:
+            ins = m.instruments[inst]
+            if ins.paused or ins.expired:
+                continue
+            m.cancel_all(self.name, inst, charge=False)
+            c = self._theo(m, ins) / m.tick(inst)
+            bid0, ask0 = math.floor(c - self.hs), math.ceil(c + self.hs)
+            for k in range(self.levels):
+                if bid0 - k > 0:
+                    m.submit(self.name, inst, "bid", bid0 - k, self.size, charge=False)
+                m.submit(self.name, inst, "ask", max(ask0 + k, 1), self.size, charge=False)

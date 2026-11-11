@@ -22,7 +22,9 @@ class Monitor:
             self.ref[P] = P
             self.ref[D] = P
         self.bbo = {}  # inst -> (bid, bid_vol, ask, ask_vol)
-        self.mid = {}  # primary -> latest mid
+        self.mid = {}  # reference instrument -> latest mid
+        self.news_n = 0
+        self.pnl_hist = deque(maxlen=20000)  # (t, pnl) for the hourly Sharpe
         self.mid_hist = defaultdict(lambda: deque(maxlen=5000))
         self.pending = deque()  # (t_fill, sign, px, ref, tag, horizon_idx)
         self.our_quotes = {}  # inst -> {"bid": (px, vol), "ask": (px, vol)}
@@ -47,7 +49,7 @@ class Monitor:
         if bids and asks:
             self.bbo[inst] = (bids[0][0], bids[0][1], asks[0][0], asks[0][1])
             self.spread[inst].append((asks[0][0] - bids[0][0]) / self.tick[inst])
-            if self.ref.get(inst) == inst:
+            if self.ref.get(inst, inst) == inst:  # every instrument outside a pair is its own reference
                 m = (bids[0][0] + asks[0][0]) / 2
                 self.mid[inst] = m
                 self.mid_hist[inst].append((now, m))
@@ -135,6 +137,26 @@ class Monitor:
             moves = [b[1] - a[1] for a, b in zip(list(hist)[-200:], list(hist)[-199:])]
             pr["mid_vol_ticks"] = round(statistics.pstdev(moves) / self.tick[P], 3) if len(moves) > 2 else None
             row["pairs"][f"{P}/{D}"] = pr
+        paired = {x for p in self.pairs for x in p}
+        row["instruments"] = {}
+        for i in sorted(set(self.tick) - paired):
+            hist = list(self.mid_hist[i])[-200:]
+            moves = [b[1] - a[1] for a, b in zip(hist, hist[1:])]
+            row["instruments"][i] = {
+                "spread_ticks": round(statistics.mean(self.spread[i]), 3) if self.spread[i] else None,
+                "mid": self.mid.get(i), "position": positions.get(i, 0),
+                "our_quotes": self.our_quotes.get(i, {}),
+                "others_at_or_better": {s: round(statistics.mean(v), 1) for (j, s), v in self.compete.items()
+                                        if v and j == i},
+                "market_trades": self.mkt[i],
+                "mid_vol_ticks": round(statistics.pstdev(moves) / self.tick[i], 3) if len(moves) > 2 else None,
+            }
+        if pnl is not None:
+            self.pnl_hist.append((now, pnl))
+        from optisim.market import hourly_sharpe
+        row["hourly_sharpe"] = hourly_sharpe(list(self.pnl_hist), bucket=max(10.0, self.window))
+        row["cash_delta"] = round(sum(positions.get(i, 0) * (self.mid.get(i) or 0) for i in positions), 2)
+        row["news_posts"] = self.news_n
         row["fills"] = {tag: {"n": f[0], "vol": f[1], "edge_ticks_per_lot": round(f[2] / f[1], 3) if f[1] else None}
                         for tag, f in self.fills.items()}
         row["markout_ticks"] = {f"{int(h)}s": {tag: round(statistics.mean(v), 3) for tag, v in d.items() if v}
@@ -160,6 +182,12 @@ class Monitor:
                  f"{f(r['pnl_change'], 2)}/{r['window_s']:.0f}s) | ops {r['ops_per_sec']}/s | "
                  f"rejects {r['orders'].get('rejected', 0)} throttled {r['orders'].get('throttled', 0)} | "
                  f"loop {f(r['loop_ms']['strategy_avg'])}ms"]
+        if r.get("instruments"):
+            act = {i: v for i, v in r["instruments"].items() if v["position"] or v["our_quotes"]}
+            lines.append("  stocks: " + " | ".join(
+                f"{i} spr {f(v['spread_ticks'])} pos {v['position']}" for i, v in list(r["instruments"].items())[:12]))
+            if r.get("hourly_sharpe") is not None:
+                lines.append(f"  hourly sharpe {r['hourly_sharpe']} | cash delta {r['cash_delta']} | news {r['news_posts']}")
         for name, p in r["pairs"].items():
             P, D = name.split("/")
             q = p["our_quotes"].get(D, {})
@@ -290,6 +318,12 @@ class Recorder:
                     self.run.write("own_orders", {"t": round(now, 4), "i": i, "orders": own})
                     mon.on_own_orders(i, own)
         mon.on_pairs()
+        reader = getattr(self.proxy, "news_for_recorder", None)
+        if reader is not None:
+            for post in self._safe("news", reader) or []:
+                mon.news_n += 1
+                self.run.event("news_seen", post=to_jsonable(post),
+                               mids={i: m for i, m in mon.mid.items()})
         if now - self.t_state >= self.state_period:
             self.write_state(now)
         if now - self.t_inst >= self.inst_period:
@@ -304,7 +338,9 @@ class Recorder:
         pos = self._safe("get_positions", self.e.get_positions) or {}
         pnl = self._safe("get_pnl", self.e.get_pnl)
         pnl = None if pnl is None else round(float(pnl), 4)
+        cash = self._safe("get_cash", getattr(self.e, "get_cash", None) or self._missing("get_cash"))
         state = {"positions": {k: int(v) for k, v in pos.items()}, "pnl": pnl,
+                 "cash": None if cash is None else round(float(cash), 4),
                  "net_delta": {f"{P}/{D}": pos.get(P, 0) + pos.get(D, 0) for P, D in self.monitor.pairs}}
         if force or state != self.last_state or now - self.t_state >= 5 * self.state_period:
             self.run.write("state", {"t": round(now, 4), **state})

@@ -1,7 +1,29 @@
 # Optiver Coding Challenge - Delft prep kit
 
-Local Optibook-like simulator + two baseline strategies + notes from past winners.
+Local Optibook-like simulator + strategies + logging + a control panel with a plain-language Handbook.
 Strategies use only the real `optibook.synchronous_client.Exchange` API, so the same file runs in the sim and live.
+
+## The Bona Fide setup (from the practice exchange, 11 Nov)
+
+The practice exchange is **eight stocks** (AMD, AVGO, NVDA, MU, SNDK, CRWV, NBIS, VRT), one big exchange maker per
+book, 20-lot background traders, a news feed, and **one connection per team** (a second one kicks the first and
+the exchange cancels its orders). Details: `docs/bona_fide_site_findings.md`. Getting the code into Optiver's
+browser VS Code: `docs/DEPLOY.md`.
+
+- **Run on the day:** `python run_live.py --strategy combo` (stocks + any options/futures/ETFs, one connection).
+  It reconnects by itself if kicked, refuses to start a second live program, and closes positions on stop.
+- **Simulator:** `--sim bonafide` (with rivals), `bonafide_quiet` (as seen), `bonafide_clones`, `bonafide_informed`,
+  `bonafide_leadlag`, `bonafide_derivs`. Rehearse a kick: `--kick-after 60`.
+- **First checks on the real exchange:** `python tools/intro_exercises.py [--probe-rate]` (1-lot orders).
+- **After observing:** `tools/news_impact.py` (does news move prices?), `tools/pair_stats.py` (pairs worth trading?).
+
+| strategy | what it does | sim result (10 min, 6 markets, 12 rivals) |
+|---|---|---|
+| `combo` | stock_mm + deriv_arb (+ optional pairs), shared order budget | bonafide_derivs: +9,200 (deriv maker is easy, treat as a check) |
+| `stock_mm` | quote 1 tick inside the exchange maker, pick off stale/dumped quotes, step aside on news | bonafide: +1,962, 1st in 3/6; without picking off about 0 |
+| `deriv_arb` | Black-Scholes / futures / ETF fair values, take mispricings, delta-hedge | standby; does nothing if no derivatives |
+| `pairs` | z-score of log price gap between sector pairs | -92 alone (spreads cost more than the gaps): off by default |
+| `evolved` v0-v10 | dual-listing quote + hedge | only if the brief is a dual listing |
 
 ## Control panel (no command line needed)
 
@@ -28,7 +50,9 @@ numbers into advice. Sources: `ui/handbook.md` (text) and `ui/params.json` (one 
 ## Quick start
 
 ```bash
-python -m pytest -q tests                                   # engine + logging tests (13)
+python -m pytest -q tests                                   # engine, logging, panel, Bona Fide tests (22)
+python tools/bench.py combo stock_mm stock_mm:take_edge=0 --scenario bonafide   # compare strategies/settings
+python run_live.py --sim bonafide --strategy combo --minutes 10 --speed 5       # rehearse the live pipeline
 python run_sim.py --strategy cross_arb   --scenario basic --seeds 5
 python run_sim.py --strategy quote_hedge --scenario hard  --seeds 5 -p edge=1 -p size=10
 python run_sim.py --strategy quote_hedge --scenario hard  --plot equity.png
@@ -50,9 +74,12 @@ python run_live.py --sim crowded --teams 12 --strategy quote_hedge --minutes 10
 ```
 optisim/      simulator: book.py (price-time matching), market.py (clock, limits, accounts, PnL),
               exchange.py (SimExchange = Optibook API), bots.py, scenarios.py
-strategies/   common.py (rate budget, worst-case capacity, hedger, flatten), cross_arb.py (v0), quote_hedge.py (v1)
+strategies/   common.py (rate budget with urgent reserve, capacity, hedger, flatten), stock_mm.py, deriv_arb.py,
+              pricing.py (Black-Scholes, Greeks, futures, ETF), news.py (post reader), pairs.py, combo.py,
+              cross_arb.py, quote_hedge.py, evolved.py (dual listing)
 runlog/       logging: core.py (run folder, exchange proxy), recorder.py (market snapshots + live monitor), settings.py (hot reload)
-tools/        market_stats.py (sim calibration), crowd_test.py, analyze_run.py (report + chart), pack_run.py (zip to share)
+tools/        analyze_run.py (report + chart), pack_run.py (zip to share), bench.py, intro_exercises.py,
+              news_impact.py, pair_stats.py, make_bundle.py (zip / paste-installer for the Dev Environment), ...
 run_sim.py    fast backtest across seeds   run_live.py   live or --sim loop with full logging, monitor, hot settings, flatten on exit
 ```
 

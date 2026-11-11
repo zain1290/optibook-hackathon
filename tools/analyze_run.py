@@ -12,6 +12,8 @@ import os
 import statistics
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 HORIZONS = (1.0, 5.0, 30.0)
 
 
@@ -113,7 +115,7 @@ def main():
         d = runs[-1]
     meta = json.load(open(os.path.join(d, "meta.json")))
     S = {s: load(d, s) for s in ["book", "ticks", "orders", "fills", "own_orders", "state", "instruments",
-                                 "metrics", "events"]}
+                                 "metrics", "events", "news"]}
     inst = meta.get("instruments", {})
     tick = {k: float((v or {}).get("tick_size") or 0.1) for k, v in inst.items()}
     pairs = [tuple(p) for p in meta.get("pairs", [])]
@@ -144,14 +146,21 @@ def main():
     R.append(f"- Duration: {dur / 60:.1f} min, loops {meta.get('loops')}, stop: {meta.get('stop_reason')}, "
              f"errors: {meta.get('errors', sum(e['kind'] == 'error' for e in S['events']))}")
     R.append(f"- Final PnL: **{f(final.get('pnl'))}**, max drawdown {f(mdd)}, final positions {final.get('positions')}")
-    R.append(f"- Pairs (primary, dual): {pairs}")
+    if pairs:
+        R.append(f"- Pairs (primary, dual): {pairs}")
+    try:
+        from optisim.market import hourly_sharpe
+        R.append(f"- Hourly Sharpe (our estimate of the leaderboard number): **{f(hourly_sharpe(pnls))}**, "
+                 f"reconnects: {meta.get('reconnects', 0)}, news posts: {len(S['news'])}")
+    except Exception:
+        pass
     R.append(f"- Code: {meta.get('env', {}).get('git_commit')} dirty={meta.get('env', {}).get('git_dirty')}, "
              f"optibook {meta.get('env', {}).get('optibook_version')}\n")
 
     if meta.get("leaderboard"):
         R.append(f"## Leaderboard (sim): we are **{meta['rank']}/{meta['n_competitors']}**\n")
-        R.append(table(["rank", "team", "pnl", "volume", "max abs net delta"],
-                       [[k + 1, r["name"], r["pnl"], r["volume"], r["max_abs_net_delta"]]
+        R.append(table(["rank", "team", "pnl (fair)", "pnl (last price)", "hourly sharpe", "volume"],
+                       [[k + 1, r["name"], r["pnl"], r.get("pnl_last"), r.get("hourly_sharpe"), r["volume"]]
                         for k, r in enumerate(meta["leaderboard"])]))
         R.append("")
 
@@ -266,6 +275,17 @@ def main():
                         "markout 30s", "edge x volume (currency)"],
                        [[t, a["n"], a["vol"], mean(a["edge"]), mean(a[1.0]), mean(a[5.0]), mean(a[30.0]), a["pnl"]]
                         for t, a in sorted(agg.items(), key=lambda kv: -kv[1]["vol"])]))
+        per = collections.defaultdict(lambda: [0, 0.0])
+        for x in fl:
+            r = ref.get(x["i"], x["i"])
+            m0 = books.mid(r, x["t"])
+            if m0 is not None:
+                per[x["i"]][0] += x["volume"]
+                per[x["i"]][1] += (1 if x["side"] == "bid" else -1) * (m0 - x["price"]) * x["volume"]
+        if len(per) > 1:
+            R.append("\nBy instrument (edge x volume at the moment of the fill, in currency):\n")
+            R.append(table(["instrument", "volume", "edge x volume"], sorted(([i, v[0], v[1]] for i, v in per.items()),
+                                                                            key=lambda r: -r[2])))
         lag = [x["t"] - x["order_t"] for x in fl if x.get("order_t") is not None]
         if lag:
             R.append(f"\nTime from order sent to fill: p50 {f(pct(lag, .5))} s, p95 {f(pct(lag, .95))} s\n")
@@ -301,8 +321,23 @@ def main():
             R.append(f"- t={e['t'] - t0:.1f}s `{e['where']}`: {e['error']}")
         R.append("")
 
+    # ---------------------------------------------------------------- news
+    if S["news"]:
+        try:
+            from tools.news_impact import report as news_report
+            R.append(news_report(d))
+        except Exception as ex:
+            R.append(f"_news impact failed: {ex!r}_\n")
+
     # ---------------------------------------------------------------- calibration
     R.append("## Simulator calibration (copy into optisim/scenarios.py)\n")
+    if not pairs:
+        R.append("Stocks: name: (price, maker half-spread in ticks, top-of-book size, trades/min). Compare with BONA_FIDE.\n")
+        for i in sorted(inst):
+            sp, sz, _ = books.timeweighted(i, t1)
+            mids = [m for m in (books.mid(i, t) for t in books.t[i]) if m is not None]
+            R.append(f"- {i}: ({f(statistics.mean(mids)) if mids else '-'}, {f(None if sp is None else sp / 2)}, "
+                     f"{f(sz, 0)}, {f(len(ticks_by[i]) / (dur / 60), 1)})")
     for P, D in pairs:
         sp_p, sz_p, _ = books.timeweighted(P, t1)
         sp_d, sz_d, _ = books.timeweighted(D, t1)

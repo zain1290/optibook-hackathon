@@ -15,6 +15,10 @@ SPECIAL = {"pause", "flatten", "hedge_when_paused", "end_in_secs"}
 
 
 def current_settings(strategy):
+    if hasattr(strategy, "live_params"):  # newer strategies list their own live-editable settings
+        out = dict(strategy.live_params())
+        out.update({"pause": False, "flatten": False, "hedge_when_paused": True})
+        return out
     keys = ["edge", "size", "skew", "penny", "soft", "min_edge", "unwind_edge", "max_clip", "limit"]
     out = {k: getattr(strategy, k) for k in keys if hasattr(strategy, k)}
     if hasattr(strategy, "taker"):
@@ -72,7 +76,12 @@ class Settings:
                 if old != v:
                     changes[k] = [old, v]
                 setattr(obj, NESTED[k][1], v)
-            elif hasattr(self.strategy, ALIASES.get(k, k)):
+            elif hasattr(self.strategy, "live_params") and k in self.strategy.live_params():
+                old = self.strategy.live_params()[k]
+                if old != v:
+                    changes[k] = [old, v]
+                setattr(self.strategy, k, v)
+            elif not hasattr(self.strategy, "live_params") and hasattr(self.strategy, ALIASES.get(k, k)):
                 attr = ALIASES.get(k, k)
                 old = getattr(self.strategy, attr)
                 if old != v:

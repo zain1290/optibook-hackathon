@@ -66,6 +66,9 @@ PARAM_HELP = {
     "soft": "Soft limit: stop growing inventory beyond this.",
     "skew": "Ticks of quote shift per lot of inventory.",
     "end_in_secs": "Tell the strategy the session ends in N seconds.",
+    "quote_edge": "Ticks between fair value and our quote, at least.",
+    "take_edge": "Pick off quotes this many ticks through fair value (0 = off).",
+    "inside": "Ticks better than the best other quote.",
 }
 
 
@@ -78,13 +81,19 @@ def strategy_schema():
     from strategies import STRATEGIES
     from strategies.evolved import ALL_FLAGS, FLAGS_BY_VERSION, VERSIONS
     out = {}
+    hidden = {"self", "pairs", "clock", "budget", "sim_clock", "hedge_cooldown"}
     for name, cls in STRATEGIES.items():
-        params = []
-        for p in inspect.signature(cls.__init__).parameters.values():
-            if p.name in ("self", "pairs", "clock") or p.kind in (p.VAR_KEYWORD, p.VAR_POSITIONAL):
-                continue
-            d = None if p.default is inspect.Parameter.empty else p.default
-            params.append({"name": p.name, "default": jsonable_default(d), "help": PARAM_HELP.get(p.name, "")})
+        params, seen = [], set()
+        sigs = [inspect.signature(cls.__init__)]
+        if name == "combo":  # combo passes everything else on to stock_mm
+            sigs.append(inspect.signature(STRATEGIES["stock_mm"].__init__))
+        for sig in sigs:
+            for p in sig.parameters.values():
+                if p.name in hidden or p.name in seen or p.kind in (p.VAR_KEYWORD, p.VAR_POSITIONAL):
+                    continue
+                seen.add(p.name)
+                d = None if p.default is inspect.Parameter.empty else p.default
+                params.append({"name": p.name, "default": jsonable_default(d), "help": PARAM_HELP.get(p.name, "")})
         out[name] = {"params": params, "doc": (cls.__doc__ or sys.modules[cls.__module__].__doc__ or "").strip()}
     latest = VERSIONS[FLAGS_BY_VERSION[-1][0]]
     flag_types = {k: type(v).__name__ for k, v in latest.items()}
@@ -206,6 +215,17 @@ JOBS = {"run": None, "bench": None}
 LOCK = threading.Lock()
 
 
+def live_lock_holder():
+    """pid of a live program (started from a terminal or this panel) that holds the exchange connection."""
+    path = os.path.join(LOGS, "LIVE_CONNECTION.lock")
+    try:
+        pid = int(open(path).read().split()[0])
+        os.kill(pid, 0)
+        return pid
+    except Exception:
+        return None
+
+
 def build_run_cmd(req):
     mode = req.get("mode", "observe")
     cmd = [sys.executable, "-u", os.path.join(BASE, "run_live.py")]
@@ -214,7 +234,7 @@ def build_run_cmd(req):
     if mode == "observe":
         cmd.append("--observe")
     else:
-        cmd += ["--strategy", req.get("strategy", "evolved")]
+        cmd += ["--strategy", req.get("strategy", "combo")]
         params = dict(req.get("params") or {})
         if req.get("strategy") == "evolved" and req.get("version"):
             params["version"] = req["version"]
@@ -223,7 +243,7 @@ def build_run_cmd(req):
                 continue
             cmd += ["-p", f"{k}={v}"]
     if req.get("sim"):
-        cmd += ["--sim", req.get("scenario", "crowded"), "--teams", str(int(req.get("teams", 12))),
+        cmd += ["--sim", req.get("scenario", "bonafide"), "--teams", str(int(req.get("teams", 12))),
                 "--seed", str(int(req.get("seed", 0))), "--speed", str(float(req.get("speed", 1.0)))]
         cmd += ["--minutes", str(float(req.get("minutes") or 10))]
     elif req.get("minutes"):
@@ -258,11 +278,11 @@ def run_snapshot(d):
     state = read_jsonl_tail(os.path.join(d, "state.jsonl"))
     metrics = read_jsonl_tail(os.path.join(d, "metrics.jsonl"), 400_000)
     events = [e for e in read_jsonl_tail(os.path.join(d, "events.jsonl"), 600_000)
-              if e.get("kind") not in ("quote_target", "hedge", "arb")]
+              if e.get("kind") not in ("quote_target", "hedge", "arb", "news_seen", "news", "delta_hedge", "pairs")]
     fills = read_jsonl_tail(os.path.join(d, "fills.jsonl"), 600_000)
     books = read_jsonl_tail(os.path.join(d, "book.jsonl"), 2_500_000)
     pairs = meta.get("pairs") or []
-    insts = sorted({i for p in pairs for i in p})
+    insts = sorted({i for p in pairs for i in p}) or sorted(meta.get("instruments") or {})[:12]
     mids = {}
     for r in books:
         if r["i"] in insts and r["b"] and r["a"]:
@@ -283,6 +303,7 @@ def run_snapshot(d):
                   for f in fills[-400:]],
         "mids": {k: downsample(v, 500) for k, v in mids.items()},
         "settings": settings,
+        "news": [[n.get("t"), n.get("post")] for n in read_jsonl_tail(os.path.join(d, "news.jsonl"), 200_000)][-30:],
         "notes": open(os.path.join(d, "notes.md")).read() if os.path.exists(os.path.join(d, "notes.md")) else "",
     }
 
@@ -320,11 +341,10 @@ class Handler(BaseHTTPRequestHandler):
                 ctype = "application/json" if u.path.endswith(".json") else "text/markdown; charset=utf-8"
                 return self._send(200, open(os.path.join(UI_DIR, u.path.lstrip("/")), "rb").read(), ctype)
             if u.path == "/api/meta":
-                from optisim.scenarios import TEAM_LIMITS
-                return self._send(200, {"strategies": strategy_schema(), "base": BASE, "team_limits": TEAM_LIMITS,
-                                        "scenarios": ["basic", "competitive", "hard", "crowded", "crowded_tight",
-                                                      "crowded_sticky", "crowded_clones"],
-                                        "optibook": optibook_available()})
+                from optisim.scenarios import BONA_FIDE_LIMITS, SCENARIOS
+                return self._send(200, {"strategies": strategy_schema(), "base": BASE, "team_limits": BONA_FIDE_LIMITS,
+                                        "scenarios": list(SCENARIOS), "optibook": optibook_available(),
+                                        "live_lock": live_lock_holder()})
             if u.path == "/api/live":
                 return self._send(200, live_payload())
             if u.path == "/api/runs":
@@ -371,6 +391,11 @@ class Handler(BaseHTTPRequestHandler):
                 with LOCK:
                     if JOBS["run"] and JOBS["run"].running():
                         return self._send(409, {"error": "a run is already active: stop it first"})
+                    holder = live_lock_holder()
+                    if not req.get("sim") and holder:
+                        return self._send(409, {"error": f"another program (pid {holder}) holds the team's one "
+                                                         "exchange connection. Starting this would kick it off and "
+                                                         "cancel its orders. Stop it first."})
                     cmd = build_run_cmd(req)
                     JOBS["run"] = Job("run", cmd, req)
                 return self._send(200, {"ok": True, "cmd": " ".join(cmd[2:])})
