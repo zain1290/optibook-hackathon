@@ -1,0 +1,376 @@
+{
+  "session": {
+    "mode": "sim",
+    "scenario": "bonafide",
+    "seed": 0,
+    "teams": 12,
+    "limits": {
+      "position_limit": 300,
+      "max_ops_per_sec": 25,
+      "self_trade_prevention": true
+    },
+    "dt": 0.1
+  },
+  "strategy": "combo",
+  "params": {},
+  "pairs": [],
+  "args": {
+    "strategy": "combo",
+    "observe": false,
+    "pairs": null,
+    "period": 0.1,
+    "minutes": 10.0,
+    "param": null,
+    "settings": null,
+    "logdir": "C:\\optibook-hackathon\\logs",
+    "book_depth": 10,
+    "record_every": 1,
+    "metrics_every": 10.0,
+    "flatten": false,
+    "no_flatten_on_exit": false,
+    "exit": "net",
+    "sim": "bonafide",
+    "teams": 12,
+    "force": false,
+    "kick_after": null,
+    "seed": 0,
+    "speed": 1.0
+  },
+  "instruments": {
+    "AMD": {
+      "instrument_id": "AMD",
+      "tick_size": 0.1,
+      "paused": false,
+      "underlying": "AMD",
+      "is_primary": true,
+      "instrument_type": "STOCK",
+      "price_change_limit": {
+        "absolute_change": 16.3,
+        "relative_change": 0.1
+      },
+      "expiry": null,
+      "option_kind": null,
+      "strike": null,
+      "base_instrument_id": null,
+      "interest_rate": null,
+      "index_constituents": null,
+      "index_divisor": null,
+      "etf_cash_comp": null,
+      "etf_multiplier": null,
+      "instrument_group": "chips",
+      "expired": false
+    },
+    "AVGO": {
+      "instrument_id": "AVGO",
+      "tick_size": 0.1,
+      "paused": false,
+      "underlying": "AVGO",
+      "is_primary": true,
+      "instrument_type": "STOCK",
+      "price_change_limit": {
+        "absolute_change": 20.67,
+        "relative_change": 0.1
+      },
+      "expiry": null,
+      "option_kind": null,
+      "strike": null,
+      "base_instrument_id": null,
+      "interest_rate": null,
+      "index_constituents": null,
+      "index_divisor": null,
+      "etf_cash_comp": null,
+      "etf_multiplier": null,
+      "instrument_group": "chips",
+      "expired": false
+    },
+    "NVDA": {
+      "instrument_id": "NVDA",
+      "tick_size": 0.1,
+      "paused": false,
+      "underlying": "NVDA",
+      "is_primary": true,
+      "instrument_type": "STOCK",
+      "price_change_limit": {
+        "absolute_change": 12.4,
+        "relative_change": 0.1
+      },
+      "expiry": null,
+      "option_kind": null,
+      "strike": null,
+      "base_instrument_id": null,
+      "interest_rate": null,
+      "index_constituents": null,
+      "index_divisor": null,
+      "etf_cash_comp": null,
+      "etf_multiplier": null,
+      "instrument_group": "chips",
+      "expired": false
+    },
+    "MU": {
+      "instrument_id": "MU",
+      "tick_size": 0.1,
+      "paused": false,
+      "underlying": "MU",
+      "is_primary": true,
+      "instrument_type": "STOCK",
+      "price_change_limit": {
+        "absolute_change": 7.84,
+        "relative_change": 0.1
+      },
+      "expiry": null,
+      "option_kind": null,
+      "strike": null,
+      "base_instrument_id": null,
+      "interest_rate": null,
+      "index_constituents": null,
+      "index_divisor": null,
+      "etf_cash_comp": null,
+      "etf_multiplier": null,
+      "instrument_group": "memory",
+      "expired": false
+    },
+    "SNDK": {
+      "instrument_id": "SNDK",
+      "tick_size": 0.1,
+      "paused": false,
+      "underlying": "SNDK",
+      "is_primary": true,
+      "instrument_type": "STOCK",
+      "price_change_limit": {
+        "absolute_change": 5.3,
+        "relative_change": 0.1
+      },
+      "expiry": null,
+      "option_kind": null,
+      "strike": null,
+      "base_instrument_id": null,
+      "interest_rate": null,
+      "index_constituents": null,
+      "index_divisor": null,
+      "etf_cash_comp": null,
+      "etf_multiplier": null,
+      "instrument_group": "memory",
+      "expired": false
+    },
+    "CRWV": {
+      "instrument_id": "CRWV",
+      "tick_size": 0.1,
+      "paused": false,
+      "underlying": "CRWV",
+      "is_primary": true,
+      "instrument_type": "STOCK",
+      "price_change_limit": {
+        "absolute_change": 14.37,
+        "relative_change": 0.1
+      },
+      "expiry": null,
+      "option_kind": null,
+      "strike": null,
+      "base_instrument_id": null,
+      "interest_rate": null,
+      "index_constituents": null,
+      "index_divisor": null,
+      "etf_cash_comp": null,
+      "etf_multiplier": null,
+      "instrument_group": "cloud",
+      "expired": false
+    },
+    "NBIS": {
+      "instrument_id": "NBIS",
+      "tick_size": 0.1,
+      "paused": false,
+      "underlying": "NBIS",
+      "is_primary": true,
+      "instrument_type": "STOCK",
+      "price_change_limit": {
+        "absolute_change": 9.33,
+        "relative_change": 0.1
+      },
+      "expiry": null,
+      "option_kind": null,
+      "strike": null,
+      "base_instrument_id": null,
+      "interest_rate": null,
+      "index_constituents": null,
+      "index_divisor": null,
+      "etf_cash_comp": null,
+      "etf_multiplier": null,
+      "instrument_group": "cloud",
+      "expired": false
+    },
+    "VRT": {
+      "instrument_id": "VRT",
+      "tick_size": 0.1,
+      "paused": false,
+      "underlying": "VRT",
+      "is_primary": true,
+      "instrument_type": "STOCK",
+      "price_change_limit": {
+        "absolute_change": 6.5,
+        "relative_change": 0.1
+      },
+      "expiry": null,
+      "option_kind": null,
+      "strike": null,
+      "base_instrument_id": null,
+      "interest_rate": null,
+      "index_constituents": null,
+      "index_divisor": null,
+      "etf_cash_comp": null,
+      "etf_multiplier": null,
+      "instrument_group": "power",
+      "expired": false
+    }
+  },
+  "env": {
+    "python": "3.13.5",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "started_wall": "2026-11-11T21:26:11.474621+01:00",
+    "optibook_version": null,
+    "git_commit": "1e0a0ad",
+    "git_dirty": false
+  },
+  "t_start": 0.0,
+  "settings_file": "C:\\optibook-hackathon\\logs\\20261111-212611_combo_sim\\settings.json",
+  "time_unit": "seconds; t = unix time live, sim seconds in --sim",
+  "leaderboard": [
+    {
+      "name": "team06_mm",
+      "pnl": 2939.19,
+      "pnl_last": 2929.5,
+      "hourly_sharpe": 24.629,
+      "volume": 29465,
+      "max_abs_net_delta": 180
+    },
+    {
+      "name": "us",
+      "pnl": 2931.0,
+      "pnl_last": 2931.0,
+      "hourly_sharpe": 24.088,
+      "volume": 29930,
+      "max_abs_net_delta": 180
+    },
+    {
+      "name": "team10_naive",
+      "pnl": 754.89,
+      "pnl_last": 713.0,
+      "hourly_sharpe": 0.778,
+      "volume": 3915,
+      "max_abs_net_delta": 300
+    },
+    {
+      "name": "team07_news",
+      "pnl": 174.0,
+      "pnl_last": 174.0,
+      "hourly_sharpe": 5.664,
+      "volume": 360,
+      "max_abs_net_delta": 20
+    },
+    {
+      "name": "team02_mm",
+      "pnl": -72.38,
+      "pnl_last": -73.5,
+      "hourly_sharpe": -1.356,
+      "volume": 925,
+      "max_abs_net_delta": 55
+    },
+    {
+      "name": "team09_naive",
+      "pnl": -73.19,
+      "pnl_last": -83.0,
+      "hourly_sharpe": -2.017,
+      "volume": 610,
+      "max_abs_net_delta": 40
+    },
+    {
+      "name": "team08_mm",
+      "pnl": -143.82,
+      "pnl_last": -142.5,
+      "hourly_sharpe": -2.475,
+      "volume": 1825,
+      "max_abs_net_delta": 55
+    },
+    {
+      "name": "team05_mm",
+      "pnl": -223.4,
+      "pnl_last": -215.5,
+      "hourly_sharpe": -0.685,
+      "volume": 8585,
+      "max_abs_net_delta": 195
+    },
+    {
+      "name": "team00_mm",
+      "pnl": -1281.15,
+      "pnl_last": -1284.0,
+      "hourly_sharpe": -14.233,
+      "volume": 10410,
+      "max_abs_net_delta": 85
+    },
+    {
+      "name": "team11_naive",
+      "pnl": -2308.08,
+      "pnl_last": -2277.0,
+      "hourly_sharpe": -5.3,
+      "volume": 20935,
+      "max_abs_net_delta": 300
+    },
+    {
+      "name": "team01_naive",
+      "pnl": -3798.75,
+      "pnl_last": -3786.0,
+      "hourly_sharpe": -8.036,
+      "volume": 21620,
+      "max_abs_net_delta": 300
+    },
+    {
+      "name": "team03_naive",
+      "pnl": -4004.18,
+      "pnl_last": -3993.0,
+      "hourly_sharpe": -10.865,
+      "volume": 23175,
+      "max_abs_net_delta": 300
+    },
+    {
+      "name": "team04_naive",
+      "pnl": -5230.07,
+      "pnl_last": -5182.0,
+      "hourly_sharpe": -6.877,
+      "volume": 25930,
+      "max_abs_net_delta": 300
+    }
+  ],
+  "rank": 2,
+  "n_competitors": 13,
+  "t_end": 600.5,
+  "stop_reason": "time limit",
+  "loops": 6000,
+  "final": {
+    "positions": {
+      "AMD": 0,
+      "AVGO": 0,
+      "NVDA": 0,
+      "MU": 0,
+      "SNDK": 0,
+      "CRWV": 0,
+      "NBIS": 0,
+      "VRT": 0
+    },
+    "pnl": 2931.0,
+    "cash": 2931.0,
+    "net_delta": {}
+  },
+  "reconnects": 0,
+  "rows": {
+    "book": 22658,
+    "ticks": 5644,
+    "orders": 8432,
+    "fills": 1785,
+    "own_orders": 5203,
+    "state": 586,
+    "instruments": 1,
+    "metrics": 61,
+    "events": 22,
+    "news": 9
+  },
+  "errors": 0
+}
