@@ -47,12 +47,12 @@ class StockMM:
     name = "stock_mm"
     LIVE = ("size", "inside", "quote_edge", "skew_per_lot", "soft_limit", "position_limit", "sticky_ticks",
             "take_edge", "take_size", "news_pause", "news_trade_size", "news_min_score", "wind_down_s",
-            "max_stocks", "fair", "depth_lots")
+            "max_stocks", "fair", "depth_lots", "quote_mode")
 
-    def __init__(self, pairs=None, instruments=None, position_limit=300, soft_limit=None, size=20, inside=1,
+    def __init__(self, pairs=None, instruments=None, position_limit=300, soft_limit=None, size=10, inside=1,
                  quote_edge=1.5, skew_per_lot=0.02, sticky_ticks=2, take_edge=1, take_size=20, news_pause=3.0,
                  news_trade_size=0, news_min_score=1, wind_down_s=60.0, max_stocks=0, fair="deep", depth_lots=200,
-                 reserve_ops=6, max_ops_per_sec=20, clock=None, hedge_cooldown=0.0):
+                 quote_mode="both", reserve_ops=6, max_ops_per_sec=20, clock=None, hedge_cooldown=0.0):
         self.clock = clock or time.monotonic
         self.instruments = [s for s in instruments.split(",")] if isinstance(instruments, str) else instruments
         self.position_limit, self.size, self.inside, self.quote_edge = position_limit, size, inside, quote_edge
@@ -69,6 +69,7 @@ class StockMM:
         self._t_refresh = -1e18
         self._rr = 0
         self.last_fair = {}
+        self.quote_mode = quote_mode  # both | reduce (only the side that shrinks our position) | off
         self.extra_delta = {}  # stock -> delta held through derivatives (set by combo); worked off via skew
 
     # ------------------------------------------------------------------ setup
@@ -119,7 +120,7 @@ class StockMM:
         if self.take_edge:  # second: pick off stale / dumped quotes (after our own stale ones are gone)
             for plan in plans:
                 if "fair" in plan:
-                    self.take(e, ctx, plan["i"], plan["fair"], plan["bids"], plan["asks"], pos)
+                    self.take(e, ctx, plan["i"], plan["fair"], plan["bids"], plan["asks"], pos, plan["own"])
         if self.max_stocks:
             plans.sort(key=lambda p: -p["spread"])
             plans = plans[: int(self.max_stocks)]
@@ -200,9 +201,14 @@ class StockMM:
             ask = bid + 1
         bsz = self.size if p < soft else 0
         asz = self.size if p > -soft else 0
-        if p > 0:  # reducing side may go bigger, up to the position
+        if self.quote_mode == "reduce":  # quotes only work positions off; profit comes from picking off
+            bsz = 0 if p >= 0 else bsz
+            asz = 0 if p <= 0 else asz
+        elif self.quote_mode == "off":
+            bsz = asz = 0
+        if p > 0 and self.quote_mode != "off":  # reducing side may go bigger, up to the position
             asz = max(asz, min(p, self.size * 2))
-        if p < 0:
+        if p < 0 and self.quote_mode != "off":
             bsz = max(bsz, min(-p, self.size * 2))
         real = pos.get(i, 0)  # exchange limits apply to the stock position itself
         bsz = max(0, min(bsz, limit - real))  # our quote on a side replaces the old one, so worst case = limit - pos
@@ -220,13 +226,21 @@ class StockMM:
                 return px
         return levels[-1][0]
 
-    def take(self, e, ctx, i, fair, bids, asks, pos):
+    def take(self, e, ctx, i, fair, bids, asks, pos, own=None):
+        """Measured against OUR price for the stock: fair value minus the inventory skew. When we are long and
+        leaning to sell, a cheap offer must be cheaper still before we buy more (and it can never hit our own
+        lowered ask, which the exchange would refuse as a self-trade)."""
         done = False
+        p_eff = pos.get(i, 0) + int(round(self.extra_delta.get(i, 0.0)))
+        ref = fair - self.skew_per_lot * p_eff
         for side, lv in (("bid", asks), ("ask", bids)):
             if not lv:
                 continue
             px = lv[0][0]
-            edge = (fair - px) if side == "bid" else (px - fair)
+            opp = [o.price_t for o in (own or {}).get("ask" if side == "bid" else "bid", []) if not o.gone]
+            if opp and ((side == "bid" and min(opp) <= px) or (side == "ask" and max(opp) >= px)):
+                continue  # our own resting order is in the way: the exchange would refuse a self-trade
+            edge = (ref - px) if side == "bid" else (px - ref)
             if edge >= self.take_edge:
                 p = pos.get(i, 0)
                 room = (self.soft_limit - p) if side == "bid" else (self.soft_limit + p)  # never past the soft limit

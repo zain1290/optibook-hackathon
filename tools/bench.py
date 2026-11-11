@@ -29,7 +29,10 @@ def parse_variant(v):
             try:
                 over[k] = int(val)
             except ValueError:
-                over[k] = float(val)
+                try:
+                    over[k] = float(val)
+                except ValueError:
+                    over[k] = val  # text setting, e.g. quote_mode=reduce
     return name, over
 
 

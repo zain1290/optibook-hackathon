@@ -129,8 +129,8 @@
    "group": "quoting",
    "unit": "lots",
    "short": "How many lots each of our waiting buy and sell orders offers.",
-   "long": "Bigger quotes catch more of each incoming trade and earn more, but positions grow faster. Stocks (combo, stock_mm): 20 is the default; the background traders trade 20 lots at a time. Dual listing (evolved): 10, or 15 when the busy spread is 2+ ticks.",
-   "when": "Start the real exchange at 5, raise to 20 once fills and positions look normal."
+   "long": "Bigger quotes catch more of each incoming trade, but in a crowded market our waiting quotes mostly get hit when they are already stale, so bigger also loses more. Simulator, stocks: 20 lots earned most with no rivals (+1,615 vs +1,160 for 10), 5 lots earned most with 12 rivals (+2,138 vs +1,986 for 10). 10 is the default because it is never the worst. Dual listing (evolved): 10, or 15 when the busy spread is 2+ ticks.",
+   "when": "Start the real exchange at 5. Then 10. Raise to 20 if few other teams trade; lower to 5 if 'Our waiting quote was hit' is negative after 5 s."
   },
   "default_size": {
    "label": "Version's quote size",
@@ -648,6 +648,14 @@
    "short": "How often the pair prices are sampled.",
    "long": "",
    "when": "0.5."
+  },
+  "quote_mode": {
+   "label": "Which quotes to show",
+   "group": "quoting",
+   "unit": "",
+   "short": "both: buy and sell quotes on every stock. reduce: only the side that shrinks our position. off: no waiting quotes, only picking off.",
+   "long": "In a crowded simulator market our waiting quotes lost about 1.4 ticks per lot (they mostly got hit when already stale) while picking off earned about 1.3. 'reduce' keeps quotes only to unload what picking off builds up. In the simulator it scored the same as 'both' within noise.",
+   "when": "both. Switch to reduce if 'Our waiting quote was hit' stays clearly negative and lowering Quote size did not help."
   }
  }
 }

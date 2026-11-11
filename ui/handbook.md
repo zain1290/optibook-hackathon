@@ -134,12 +134,12 @@ What the simulator said (10-minute practice markets, 6 different markets each, 1
 
 | Practice market | Stocks only | + news trading | No picking off |
 |---|---|---|---|
-| bonafide (standard) | +1,962, 1st in 3 of 6 | +2,297 | about 0 |
+| bonafide (standard) | +1,986, 1st in 3 of 6 | +2,297 | about 0 |
 | bonafide_quiet (today's market, no rivals) | +1,615 | +2,248 | +1,615 |
 | bonafide_informed | +2,019 | +2,227 | -274 |
 | bonafide_clones (half the rivals copy us) | +846 | +972 | -25 |
 
-Read it as: picking off is the big earner whenever there are rivals; news trading helps if news really moves prices (in the simulator it was built to); copies of our own bot are the toughest rivals. On the derivatives market, 'Everything' added about +7,000 on top, but the simulated derivative maker is easy to beat, so treat that as a check that the pricing works, not a forecast.
+Numbers are for the settings at the time (quote size 20 for the last three rows; the default is now 10). Read it as: picking off is the big earner whenever there are rivals; news trading helps if news really moves prices (in the simulator it was built to); copies of our own bot are the toughest rivals. On the derivatives market, 'Everything' added about +7,000 on top, but the simulated derivative maker is easy to beat, so treat that as a check that the pricing works, not a forecast.
 
 The dual listing strategy 'evolved' grew through numbered versions:
 

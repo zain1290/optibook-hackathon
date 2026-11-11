@@ -10,6 +10,23 @@ def _px(x):
     return round(float(x), 6)
 
 
+DEEP_LOTS = 200  # same idea as the bot's fair value: ignore small orders, find where real size sits
+
+
+def deep_mid(bids, asks, lots=DEEP_LOTS):
+    """Middle of the prices where at least `lots` are offered (or the deepest level shown).
+    Small orders inside the spread (ours, rivals') do not move it, so edge and markouts are measured
+    against the same fair value the bot trades on."""
+    def at(levels):
+        cum = 0
+        for px, v in levels:
+            cum += v
+            if cum >= lots:
+                return px
+        return levels[-1][0]
+    return (at(bids) + at(asks)) / 2
+
+
 class Monitor:
     """Rolling-window metrics (default 10 s) that answer: how crowded, are we picked off, what pays."""
 
@@ -50,7 +67,7 @@ class Monitor:
             self.bbo[inst] = (bids[0][0], bids[0][1], asks[0][0], asks[0][1])
             self.spread[inst].append((asks[0][0] - bids[0][0]) / self.tick[inst])
             if self.ref.get(inst, inst) == inst:  # every instrument outside a pair is its own reference
-                m = (bids[0][0] + asks[0][0]) / 2
+                m = deep_mid(bids, asks) if not self.pairs else (bids[0][0] + asks[0][0]) / 2
                 self.mid[inst] = m
                 self.mid_hist[inst].append((now, m))
         else:

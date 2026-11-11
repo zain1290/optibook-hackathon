@@ -13,6 +13,7 @@ import statistics
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from runlog.recorder import deep_mid  # noqa: E402
 
 HORIZONS = (1.0, 5.0, 30.0)
 
@@ -54,11 +55,14 @@ class Books:
     def __init__(self, rows, tick):
         self.t, self.bbo = collections.defaultdict(list), collections.defaultdict(list)
         self.rows = rows
+        self.deep = collections.defaultdict(list)
+        self.use_deep = False
         for r in rows:
             b = r["b"][0] if r["b"] else None
             a = r["a"][0] if r["a"] else None
             self.t[r["i"]].append(r["t"])
             self.bbo[r["i"]].append((b, a))
+            self.deep[r["i"]].append(deep_mid(r["b"], r["a"]) if (r["b"] and r["a"]) else None)
         self.tick = tick
 
     def at(self, i, t):
@@ -66,6 +70,9 @@ class Books:
         return self.bbo[i][k] if k >= 0 else (None, None)
 
     def mid(self, i, t):
+        if self.use_deep:  # many-stocks setup: the same 'deep' fair value the bot uses
+            k = bisect.bisect_right(self.t[i], t) - 1
+            return self.deep[i][k] if k >= 0 else None
         b, a = self.at(i, t)
         return None if not (b and a) else (b[0] + a[0]) / 2
 
@@ -127,6 +134,7 @@ def main():
     t1 = meta.get("t_end", max(all_t) if all_t else 0)
     dur = max(1e-9, t1 - t0)
     books = Books(S["book"], tick)
+    books.use_deep = not pairs
     R = []
 
     # ---------------------------------------------------------------- summary
@@ -249,7 +257,8 @@ def main():
     fl = S["fills"]
     if fl:
         R.append("## Fills: where the money came from\n")
-        R.append("Edge = (fair mid - price) for buys, (price - fair mid) for sells, in ticks; fair mid = primary listing mid. "
+        R.append("Edge = (fair mid - price) for buys, (price - fair mid) for sells, in ticks; fair mid = primary listing mid "
+                 "(dual listing) or the deep mid, where at least 200 lots sit on each side (stocks). "
                  "Markout = same thing measured h seconds later. Positive = good for us.\n")
         agg = collections.defaultdict(lambda: {"n": 0, "vol": 0, "edge": [], "pnl": 0.0,
                                                 **{h: [] for h in HORIZONS}})

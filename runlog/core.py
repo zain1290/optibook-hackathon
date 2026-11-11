@@ -276,6 +276,8 @@ class LoggingExchange:
                 ok = bool(resp.success)
             elif isinstance(resp, bool):
                 ok = resp
+            elif resp is None and action == "delete_orders":
+                ok = True  # the real client returns nothing for delete_orders
             else:
                 ok = None  # client returned something we don't recognise; resp is logged in full
             reason = None
