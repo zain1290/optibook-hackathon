@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bot Control Panel</title>
+<style>
+:root {
+  --paper: #eef1f4; --panel: #ffffff; --ink: #14213d; --ink-2: #5b6475; --ink-3: #8a93a3;
+  --rule: #d5dbe3; --rule-2: #e6eaf0; --accent: #1f4fa3; --accent-ink: #ffffff; --accent-soft: #e3eaf7;
+  --s1: #1f4fa3; --s2: #c7741e; --good: #1c8a5a; --bad: #c2361f; --bad-soft: #fbe9e6; --warn: #a86a00;
+  --live-a: #c2361f; --live-b: #a92b17;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1726; --panel: #172133; --ink: #e6ecf5; --ink-2: #a3aec2; --ink-3: #6f7b91;
+    --rule: #2a3750; --rule-2: #223047; --accent: #4f7fd6; --accent-ink: #0b1220; --accent-soft: #1e2d4a;
+    --s1: #4f7fd6; --s2: #c27c33; --good: #3fb37f; --bad: #e0573f; --bad-soft: #3a1f1d; --warn: #d9a13a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1726; --panel: #172133; --ink: #e6ecf5; --ink-2: #a3aec2; --ink-3: #6f7b91;
+  --rule: #2a3750; --rule-2: #223047; --accent: #4f7fd6; --accent-ink: #0b1220; --accent-soft: #1e2d4a;
+  --s1: #4f7fd6; --s2: #c27c33; --good: #3fb37f; --bad: #e0573f; --bad-soft: #3a1f1d; --warn: #d9a13a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.45 var(--sans); }
+body { font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+h2 { font-size: 17px; } h3 { font-size: 14px; }
+a { color: var(--accent); }
+.muted { color: var(--ink-2); } .faint { color: var(--ink-3); }
+.pos { color: var(--good); } .neg { color: var(--bad); }
+
+/* ---------- status rail: the one loud element ---------- */
+.rail { position: sticky; top: 0; z-index: 10; color: #fff; background: var(--accent);
+  display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding: 10px 20px; }
+.rail.idle { background: #3a4558; }
+.rail.live { background: repeating-linear-gradient(135deg, var(--live-a) 0 14px, var(--live-b) 14px 28px); }
+.rail .who { display: flex; flex-direction: column; min-width: 0; }
+.rail .mode { font-weight: 750; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.rail .dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; flex: none; }
+.rail.running .dot { box-shadow: 0 0 0 3px rgba(255,255,255,.3); }
+.rail .sub { font-size: 12px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rail .stats { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
+.rail .stat { display: flex; flex-direction: column; align-items: flex-start; }
+.rail .stat b { font-size: 18px; font-weight: 700; line-height: 1.1; }
+.rail .stat span { font-size: 11.5px; opacity: .85; }
+.rail .acts { display: flex; gap: 8px; }
+.rail button { border: 1px solid rgba(255,255,255,.7); background: transparent; color: #fff; padding: 7px 12px;
+  border-radius: 6px; cursor: pointer; font-weight: 600; }
+.rail button:hover { background: rgba(255,255,255,.14); }
+.rail button.solid { background: #fff; color: var(--bad); border-color: #fff; }
+.rail button.solid:hover { background: #ffecea; }
+.rail button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---------- tabs ---------- */
+nav.tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--rule); background: var(--panel); }
+nav.tabs button { border: 0; background: none; padding: 12px 14px 10px; cursor: pointer; color: var(--ink-2);
+  border-bottom: 3px solid transparent; font-weight: 600; }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+main { padding: 18px 20px 60px; max-width: 1500px; margin: 0 auto; }
+section[hidden] { display: none; }
+
+/* ---------- layout pieces ---------- */
+.cols { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.cols.wide-left { grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr); }
+.cols.list-detail { grid-template-columns: minmax(300px, .9fr) minmax(0, 2fr); }
+.cols > * { min-width: 0; }
+@media (max-width: 980px) { .cols, .cols.wide-left, .cols.list-detail { grid-template-columns: 1fr; }
+  .rail { grid-template-columns: 1fr; } .rail .stats { justify-content: flex-start; } }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; }
+.panel + .panel { margin-top: 18px; }
+.cols > .panel + .panel { margin-top: 0; }
+.panel > h2, .panel > h3 { margin-bottom: 10px; }
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.head h2, .head h3 { margin: 0; }
+.stack > * + * { margin-top: 12px; }
+
+/* ---------- form ---------- */
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--rule); background: var(--panel); padding: 10px 8px; cursor: pointer; text-align: left; }
+.seg button:last-child { border-right: 0; }
+.seg button b { display: block; font-size: 13.5px; }
+.seg button span { display: block; font-size: 12px; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 -3px 0 var(--accent); }
+.seg button[data-mode="live"][aria-pressed="true"] { background: var(--bad-soft); box-shadow: inset 0 -3px 0 var(--bad); }
+.seg button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 640px) { .seg { grid-template-columns: 1fr 1fr; }
+  main { padding: 12px 12px 48px; } nav.tabs { padding: 0 8px; overflow-x: auto; }
+  .rail { gap: 8px; padding: 8px 12px; } .rail .sub, .rail .stat.opt { display: none; }
+  .rail .stats { gap: 14px; } .rail .stat b { font-size: 15px; } .rail .acts button { padding: 6px 9px; } }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px 14px; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink-2); }
+label.f > span { display: flex; justify-content: space-between; gap: 6px; }
+label.f.changed > span { color: var(--accent); font-weight: 600; }
+input[type=text], input[type=number], select, textarea { background: var(--panel); border: 1px solid var(--rule);
+  border-radius: 6px; padding: 7px 9px; color: var(--ink); width: 100%; }
+textarea { resize: vertical; min-height: 120px; font-family: var(--mono); font-size: 12.5px; }
+label.chk { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; padding-top: 18px; }
+.help { font-size: 11.5px; color: var(--ink-3); line-height: 1.3; }
+details { border-top: 1px solid var(--rule-2); padding-top: 10px; }
+details summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
+.btn { border: 1px solid var(--rule); background: var(--panel); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn.armed { background: var(--bad); border-color: var(--bad); color: #fff; outline: 3px solid var(--bad-soft); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cmd { font-family: var(--mono); font-size: 12px; background: var(--paper); border: 1px solid var(--rule-2);
+  border-radius: 6px; padding: 8px 10px; overflow-x: auto; white-space: pre; color: var(--ink-2); }
+.note { border-left: 3px solid var(--warn); padding: 6px 10px; background: var(--paper); font-size: 13px; }
+.note.bad { border-left-color: var(--bad); }
+
+/* ---------- console / tables ---------- */
+pre.console { font-family: var(--mono); font-size: 12px; line-height: 1.4; background: var(--paper); border: 1px solid var(--rule-2);
+  border-radius: 6px; padding: 10px; margin: 0; height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule-2); vertical-align: top; }
+th { color: var(--ink-2); font-weight: 600; font-size: 12px; }
+td.num, th.num { text-align: right; }
+tr.sel td { background: var(--accent-soft); }
+tbody tr.click { cursor: pointer; } tbody tr.click:hover td { background: var(--paper); }
+.tablewrap { overflow-x: auto; }
+.kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.kv div b { display: block; font-size: 17px; }
+.kv div span { font-size: 12px; color: var(--ink-2); }
+
+/* ---------- charts ---------- */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart .tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--rule);
+  border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.08); white-space: nowrap; display: none; }
+.chart .tip b { font-weight: 650; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-2); margin: 2px 0 4px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.empty { color: var(--ink-3); font-size: 13px; padding: 18px 0; }
+
+/* ---------- report ---------- */
+.md h1 { font-size: 18px; margin: 4px 0 10px; } .md h2 { font-size: 15.5px; margin: 18px 0 8px; } .md h3 { font-size: 14px; margin: 14px 0 6px; }
+.md p, .md ul { margin: 6px 0; max-width: 80ch; } .md code { font-family: var(--mono); font-size: 12px; }
+.md table { margin: 6px 0 10px; }
+img.overview { width: 100%; border: 1px solid var(--rule-2); border-radius: 6px; margin-top: 10px; }
+.toast { position: fixed; right: 18px; bottom: 18px; background: var(--ink); color: var(--paper); padding: 10px 14px;
+  border-radius: 8px; font-size: 13px; max-width: 420px; display: none; z-index: 20; }
+.toast.err { background: var(--bad); color: #fff; }
+</style>
+</head>
+<body>
+
+<header class="rail idle" id="rail" aria-live="polite">
+  <div class="who">
+    <div class="mode"><span class="dot"></span><span id="railMode">No bot running</span></div>
+    <div class="sub" id="railSub">Start a run in the Run tab</div>
+  </div>
+  <div class="stats" id="railStats"></div>
+  <div class="acts">
+    <button id="btnPause" disabled>Pause trading</button>
+    <button id="btnStop" disabled title="Stops the loop; the exit rule you chose is applied">Stop</button>
+    <button id="btnFlatStop" class="solid" disabled title="Close every position, then stop">Flatten and stop</button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="run" aria-selected="true">Run</button>
+  <button role="tab" data-tab="monitor" aria-selected="false">Monitor</button>
+  <button role="tab" data-tab="runs" aria-selected="false">Past runs</button>
+  <button role="tab" data-tab="bench" aria-selected="false">Backtest</button>
+</nav>
+
+<main>
+<!-- =============================== RUN =============================== -->
+<section id="tab-run">
+  <div class="cols wide-left">
+    <div>
+      <div class="panel stack">
+        <div class="head"><h2>What do you want to do?</h2></div>
+        <div class="seg" id="modeSeg">
+          <button data-mode="observe"><b>Observe</b><span>Record the live market, no orders</span></button>
+          <button data-mode="live"><b>Trade live</b><span>Real exchange, real orders</span></button>
+          <button data-mode="sim"><b>Rehearse</b><span>Same pipeline on the simulator</span></button>
+          <button data-mode="flatten"><b>Flatten now</b><span>Cancel all, close all positions</span></button>
+        </div>
+        <div id="optibookNote" class="note" hidden></div>
+
+        <div id="strategyBlock" class="stack">
+          <div class="grid">
+            <label class="f"><span>Strategy</span><select id="selStrategy"></select></label>
+            <label class="f" id="versionWrap"><span>Version</span><select id="selVersion"></select></label>
+          </div>
+          <div class="help" id="strategyDoc"></div>
+          <div>
+            <h3 style="margin-bottom:8px">Parameters</h3>
+            <div class="grid" id="paramGrid"></div>
+          </div>
+          <details id="flagDetails">
+            <summary>Strategy flags for this version</summary>
+            <div class="help" style="margin-bottom:8px">Everything a version switched on. Change any of them for this run; blue labels differ from the version.</div>
+            <div class="grid" id="flagGrid"></div>
+          </details>
+        </div>
+
+        <div id="simBlock" class="stack">
+          <h3>Simulated market</h3>
+          <div class="grid">
+            <label class="f"><span>Market</span><select id="simScenario"></select></label>
+            <label class="f"><span>Rival teams</span><input type="number" id="simTeams" value="12" min="0" max="40"></label>
+            <label class="f"><span>Market seed</span><input type="number" id="simSeed" value="0" min="0"></label>
+            <label class="f"><span>Length (minutes)</span><input type="number" id="simMinutes" value="10" min="0.5" step="0.5"></label>
+            <label class="f"><span>Speed</span><select id="simSpeed">
+              <option value="1">Real time (practise live)</option><option value="5">5x</option>
+              <option value="20">20x</option><option value="0">As fast as possible</option></select></label>
+          </div>
+        </div>
+
+        <div id="runBlock" class="stack">
+          <h3>Run settings</h3>
+          <div class="grid">
+            <label class="f" id="pairsWrap"><span>Pairs (primary:dual)</span><input type="text" id="runPairs" placeholder="auto-detect, e.g. ASML:ASML_DUAL"></label>
+            <label class="f" id="liveMinutesWrap"><span>Stop after (minutes)</span><input type="number" id="runMinutes" placeholder="until you stop it" min="0" step="1"></label>
+            <label class="f"><span>Loop period (seconds)</span><input type="number" id="runPeriod" value="0.1" min="0.02" step="0.05"></label>
+            <label class="f" id="exitWrap"><span>When stopping</span><select id="runExit">
+              <option value="net">Close unhedged delta only</option>
+              <option value="all">Close every position</option>
+              <option value="none">Leave positions as they are</option></select></label>
+            <label class="f"><span>Record every N loops</span><input type="number" id="runRecord" value="1" min="1"></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel stack">
+        <div class="head"><h2 id="startTitle">Start</h2></div>
+        <div class="help">Command that will run</div>
+        <div class="cmd" id="cmdPreview"></div>
+        <div class="row">
+          <button class="btn primary" id="btnStart">Start</button>
+          <span class="help" id="startHint"></span>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="head"><h3>Output</h3><span class="help" id="consoleStatus"></span></div>
+        <pre class="console" id="runConsole" aria-live="off"></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== MONITOR =============================== -->
+<section id="tab-monitor" hidden>
+  <div id="monEmpty" class="panel empty">Nothing is running. Start a run in the Run tab, or open a past run from Past runs.</div>
+  <div id="monBody" hidden>
+    <div class="cols wide-left">
+      <div>
+        <div class="panel">
+          <div class="head"><h3>PnL</h3><span class="help" id="monRunName"></span></div>
+          <div class="chart" id="chPnl"></div>
+        </div>
+        <div class="panel">
+          <div class="head"><h3>Positions</h3><span class="help">per instrument, lots</span></div>
+          <div class="chart" id="chPos"></div>
+        </div>
+        <div class="panel">
+          <div class="head"><h3>Prices and our fills</h3><span class="help">mid prices; ▲ our buys, ▼ our sells</span></div>
+          <div class="chart" id="chPx"></div>
+        </div>
+        <div class="panel">
+          <div class="head"><h3>Market and our quotes</h3><span class="help" id="monMetricsAge"></span></div>
+          <div class="tablewrap" id="monPairs"></div>
+          <div class="head" style="margin-top:14px"><h3>Where the money comes from</h3><span class="help">last 10 s window; edge and post-fill moves in ticks, + is good</span></div>
+          <div class="tablewrap" id="monFills"></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel stack" id="setPanel">
+          <div class="head"><h3>Live settings</h3><span class="help">applied by the bot within ~1 s</span></div>
+          <div class="row">
+            <button class="btn" id="btnPause2">Pause trading</button>
+            <button class="btn danger" id="btnFlatten2">Flatten positions</button>
+          </div>
+          <div id="setGrid"></div>
+          <div class="row">
+            <button class="btn primary" id="btnApply" disabled>Apply changes</button>
+            <button class="btn" id="btnRevert" disabled>Discard</button>
+            <span class="help" id="setStatus"></span>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="head"><h3>Health</h3></div>
+          <div class="kv" id="monHealth"></div>
+        </div>
+        <div class="panel">
+          <div class="head"><h3>Events</h3><span class="help">settings, pauses, errors</span></div>
+          <div class="tablewrap" id="monEvents" style="max-height:260px;overflow:auto"></div>
+        </div>
+        <div class="panel stack">
+          <div class="head"><h3>Notes for this run</h3><button class="btn" id="btnSaveNotes">Save notes</button></div>
+          <textarea id="notes" placeholder="Paste the brief, leaderboard numbers, what you changed and why"></textarea>
+        </div>
+        <div class="panel">
+          <div class="head"><h3>Console</h3></div>
+          <pre class="console" id="monConsole"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== RUNS =============================== -->
+<section id="tab-runs" hidden>
+  <div class="cols list-detail">
+    <div class="panel">
+      <div class="head"><h2>Past runs</h2><button class="btn" id="btnRefreshRuns">Refresh</button></div>
+      <div class="tablewrap" id="runsTable"></div>
+    </div>
+    <div class="panel" id="runDetail"><div class="empty">Pick a run to see its report, charts and logs.</div></div>
+  </div>
+</section>
+
+<!-- =============================== BENCH =============================== -->
+<section id="tab-bench" hidden>
+  <div class="cols wide-left">
+    <div class="panel stack">
+      <div class="head"><h2>Backtest versions on held-out markets</h2></div>
+      <div class="help">Compare versions or single tweaks before using them live. Write each variant as <code>version</code> or
+        <code>version:flag=value,flag=value</code>, separated by spaces. Example: <code>v8 v10 v10:size=20 v10:min_profit=0.8</code></div>
+      <div class="grid">
+        <label class="f" style="grid-column: 1 / -1"><span>Variants</span><input type="text" id="bVariants" value="v8 v10"></label>
+        <label class="f"><span>Market</span><select id="bScenario"></select></label>
+        <label class="f"><span>Markets to test</span><input type="number" id="bSeeds" value="4" min="1" max="16"></label>
+        <label class="f"><span>Rival teams</span><input type="number" id="bTeams" value="12" min="0"></label>
+        <label class="f"><span>Our loop</span><select id="bEvery"><option value="1">0.1 s</option><option value="2" selected>0.2 s</option><option value="5">0.5 s</option></select></label>
+        <label class="f"><span>Exit cost</span><select id="bExit"><option value="net">Close unhedged delta</option><option value="all">Close everything</option><option value="">None</option></select></label>
+      </div>
+      <div class="row"><button class="btn primary" id="btnBench">Run backtest</button><button class="btn" id="btnBenchStop" disabled>Stop</button>
+        <span class="help" id="benchStatus"></span></div>
+    </div>
+    <div class="panel">
+      <div class="head"><h3>Results</h3></div>
+      <div class="tablewrap" id="benchTable"></div>
+      <details style="margin-top:12px"><summary>Raw output</summary><pre class="console" id="benchOut" style="height:260px;white-space:pre;word-break:normal"></pre></details>
+      <div class="help" style="margin-top:8px">Rank is out of all teams (13 with 12 rivals). "vs best rival" is our PnL minus the best other team's. Each market takes ~2 s.</div>
+    </div>
+  </div>
+</section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = (v, d = 2) => v == null || Number.isNaN(v) ? "–" : (typeof v === "number" ? v.toFixed(d) : String(v));
+const signed = (v, d = 2) => v == null ? "–" : (v > 0 ? "+" : "") + v.toFixed(d);
+const cls = v => v == null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "";
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const r = await fetch(path.replace(/^\//, ""), opt);   // relative: works behind a proxy prefix too
+  const j = r.headers.get("content-type")?.includes("json") ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(j.error || j || r.statusText);
+  return j;
+}
+let toastT;
+function toast(msg, err = false) {
+  const t = $("#toast"); t.textContent = msg; t.className = "toast" + (err ? " err" : ""); t.style.display = "block";
+  clearTimeout(toastT); toastT = setTimeout(() => t.style.display = "none", err ? 7000 : 3500);
+}
+function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem("cp." + k)); localStorage.setItem("cp." + k, JSON.stringify(v)); } catch { return null; } }
+
+/* ------------------------------------------------------------------ state */
+const S = { meta: null, mode: store("mode") || "sim", live: null, viewDir: null, settingsDraft: {}, armed: false, tab: "run" };
+
+/* ------------------------------------------------------------------ tabs */
+function showTab(name) {
+  S.tab = name;
+  $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
+  $$("main > section").forEach(s => s.hidden = s.id !== "tab-" + name);
+  if (name === "runs") loadRuns();
+  if (name === "monitor") renderMonitor();
+  store("tab", name);
+}
+$$("nav.tabs button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+/* ------------------------------------------------------------------ run form */
+function inputFor(name, value, typeHint, help, changed, pre = "p_") {
+  const t = typeHint || (typeof value === "boolean" ? "bool" : typeof value === "number" ? "number" : value === null ? "number" : "text");
+  const id = pre + name;
+  if (t === "bool") {
+    return `<label class="f chk ${changed ? "changed" : ""}" title="${esc(help)}"><input type="checkbox" id="${id}" data-name="${esc(name)}" data-type="bool" ${value ? "checked" : ""}><span>${esc(name)}</span></label>`;
+  }
+  const isNum = t === "number" || t === "int" || t === "float";
+  const step = t === "int" || (Number.isInteger(value) && t !== "float") ? "1" : "any";
+  return `<label class="f ${changed ? "changed" : ""}"><span>${esc(name)}</span>
+    <input type="${isNum ? "number" : "text"}" ${isNum ? `step="${step}"` : ""} id="${id}" data-name="${esc(name)}" data-type="${isNum ? "number" : "text"}" value="${value ?? ""}" placeholder="${value === null ? "auto" : ""}">
+    ${help ? `<span class="help">${esc(help)}</span>` : ""}</label>`;
+}
+function readInput(el) {
+  if (el.dataset.type === "bool") return el.checked;
+  if (el.dataset.type === "number") return el.value === "" ? null : Number(el.value);
+  return el.value;
+}
+
+function renderStrategyForm() {
+  const sch = S.meta.strategies;
+  const strat = $("#selStrategy").value;
+  const def = sch[strat];
+  $("#versionWrap").hidden = strat !== "evolved";
+  $("#flagDetails").hidden = strat !== "evolved";
+  $("#strategyDoc").textContent = (def.doc || "").split("\n").slice(0, 3).join(" ");
+  const saved = store("params." + strat) || {};
+  $("#paramGrid").innerHTML = def.params.filter(p => p.name !== "version").map(p => {
+    const v = saved[p.name] !== undefined ? saved[p.name] : p.default;
+    return inputFor(p.name, v, null, p.help, saved[p.name] !== undefined && saved[p.name] !== p.default);
+  }).join("");
+  if (strat === "evolved") renderFlags();
+  $$("#paramGrid input").forEach(el => el.oninput = el.onchange = () => {
+    const cur = store("params." + strat) || {}; const p = def.params.find(x => x.name === el.dataset.name);
+    const v = readInput(el); if (v === p.default || v === null) delete cur[el.dataset.name]; else cur[el.dataset.name] = v;
+    store("params." + strat, cur); el.closest("label").classList.toggle("changed", cur[el.dataset.name] !== undefined); updateCmd();
+  });
+  updateCmd();
+}
+function renderFlags() {
+  const ev = S.meta.strategies.evolved, ver = $("#selVersion").value;
+  const base = ev.versions[ver] || {}, over = store("flags." + ver) || {};
+  const names = Object.keys(ev.flag_types).sort();
+  $("#flagGrid").innerHTML = names.map(n => {
+    const has = n in base, v = n in over ? over[n] : (has ? base[n] : (ev.flag_types[n] === "bool" ? false : null));
+    return inputFor(n, v, ev.flag_types[n], ev.flag_help[n], n in over, "f_");
+  }).join("");
+  $$("#flagGrid input").forEach(el => el.oninput = el.onchange = () => {
+    const cur = store("flags." + ver) || {}, n = el.dataset.name, v = readInput(el);
+    const baseV = n in base ? base[n] : (ev.flag_types[n] === "bool" ? false : null);
+    if (v === baseV) delete cur[n]; else cur[n] = v;
+    store("flags." + ver, cur); el.closest("label").classList.toggle("changed", n in cur); updateCmd();
+  });
+}
+function setMode(m) {
+  S.mode = m; store("mode", m); S.armed = false;
+  $$("#modeSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === m));
+  $("#strategyBlock").hidden = m === "observe" || m === "flatten";
+  $("#simBlock").hidden = m !== "sim";
+  $("#runBlock").hidden = m === "flatten";
+  $("#pairsWrap").hidden = m === "observe";
+  $("#exitWrap").hidden = m === "observe";
+  $("#liveMinutesWrap").hidden = m === "sim";
+  updateCmd();
+}
+$$("#modeSeg button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+
+function buildRequest() {
+  const m = S.mode, req = { mode: m === "observe" ? "observe" : m === "flatten" ? "flatten" : "strategy" };
+  if (req.mode === "strategy") {
+    req.strategy = $("#selStrategy").value;
+    req.params = { ...(store("params." + req.strategy) || {}) };
+    if (req.strategy === "evolved") { req.version = $("#selVersion").value; Object.assign(req.params, store("flags." + req.version) || {}); }
+    req.exit = $("#runExit").value;
+    if ($("#runPairs").value.trim()) req.pairs = $("#runPairs").value.trim();
+  }
+  if (m === "sim") Object.assign(req, { sim: true, scenario: $("#simScenario").value, teams: +$("#simTeams").value,
+    seed: +$("#simSeed").value, minutes: +$("#simMinutes").value, speed: +$("#simSpeed").value });
+  else if (m !== "flatten" && $("#runMinutes").value) req.minutes = +$("#runMinutes").value;
+  if (m !== "flatten") { req.period = +$("#runPeriod").value; req.record_every = +$("#runRecord").value; }
+  return req;
+}
+function updateCmd() {
+  if (!S.meta) return;
+  const r = buildRequest(), a = ["python run_live.py"];
+  if (r.mode === "flatten") a.push("--flatten");
+  else if (r.mode === "observe") a.push("--observe");
+  else { a.push("--strategy " + r.strategy); for (const [k, v] of Object.entries({ ...r.params, ...(r.version ? { version: r.version } : {}) })) if (v !== null && v !== "") a.push(`-p ${k}=${v}`); }
+  if (r.sim) a.push(`--sim ${r.scenario} --teams ${r.teams} --seed ${r.seed} --speed ${r.speed} --minutes ${r.minutes}`);
+  else if (r.minutes) a.push("--minutes " + r.minutes);
+  if (r.pairs) a.push("--pairs " + r.pairs);
+  if (r.period) a.push("--period " + r.period);
+  if (r.exit) a.push("--exit " + r.exit);
+  if (r.record_every > 1) a.push("--record-every " + r.record_every);
+  $("#cmdPreview").textContent = a.join(" \\\n    ");
+  const labels = { observe: "Start observing", live: "Start live trading", sim: "Start rehearsal", flatten: "Flatten all positions" };
+  const btn = $("#btnStart"); btn.textContent = S.armed ? "Click again to confirm" : labels[S.mode];
+  btn.className = "btn " + (S.armed ? "armed" : (S.mode === "live" || S.mode === "flatten") ? "danger" : "primary");
+  $("#startTitle").textContent = labels[S.mode];
+  const running = S.live?.job?.running;
+  const needsOptibook = (S.mode === "live" || S.mode === "observe" || S.mode === "flatten") && !S.meta.optibook;
+  btn.disabled = !!running || needsOptibook;
+  $("#startHint").textContent = running ? "A run is active. Stop it first." : needsOptibook ? "Needs the Optibook client on this machine." :
+    (S.mode === "live" || S.mode === "flatten") ? "Asks you to confirm." : "";
+}
+["#selVersion", "#simScenario", "#simTeams", "#simSeed", "#simMinutes", "#simSpeed", "#runPairs", "#runMinutes", "#runPeriod", "#runExit", "#runRecord"]
+  .forEach(s => { $(s).addEventListener("input", updateCmd); $(s).addEventListener("change", () => { if (s === "#selVersion") { store("version", $(s).value); renderFlags(); } updateCmd(); }); });
+$("#selStrategy").onchange = () => { store("strategy", $("#selStrategy").value); renderStrategyForm(); };
+
+$("#btnStart").onclick = async () => {
+  if ((S.mode === "live" || S.mode === "flatten") && !S.armed) { S.armed = true; updateCmd(); setTimeout(() => { S.armed = false; updateCmd(); }, 4000); return; }
+  S.armed = false;
+  try {
+    const r = await api("/api/start", buildRequest());
+    toast("Started: " + r.cmd.split(" ").slice(0, 3).join(" "));
+    S.viewDir = null; setTimeout(poll, 400);
+    if (S.mode !== "flatten") setTimeout(() => showTab("monitor"), 1200);
+  } catch (e) { toast(e.message, true); }
+  updateCmd();
+};
+
+/* ------------------------------------------------------------------ rail + controls */
+async function stopRun(force = false) { try { await api("/api/stop", { force }); toast(force ? "Killed" : "Stopping: applying your exit rule"); } catch (e) { toast(e.message, true); } }
+async function setSetting(changes) {
+  try { await api("/api/settings", { changes, dir: S.live?.run_dir }); } catch (e) { toast(e.message, true); throw e; }
+}
+async function togglePause() {
+  const paused = !!S.live?.settings?.pause;
+  try { await setSetting({ pause: !paused }); toast(paused ? "Resumed trading" : "Paused: quotes pulled, hedging continues"); poll(); } catch {}
+}
+async function flatten(thenStop) {
+  if (!confirmArm(thenStop ? "flatstop" : "flat")) return;
+  try {
+    await setSetting({ flatten: true });
+    toast("Flattening positions");
+    if (thenStop) setTimeout(() => stopRun(false), 2000);
+    setTimeout(() => setSetting({ flatten: false }).catch(() => {}), 2500);
+  } catch {}
+}
+const arms = {};
+function confirmArm(key) {
+  const btn = key === "flatstop" ? $("#btnFlatStop") : $("#btnFlatten2");
+  if (arms[key]) { clearTimeout(arms[key]); arms[key] = null; btn.textContent = btn.dataset.label; return true; }
+  btn.dataset.label = btn.dataset.label || btn.textContent; btn.textContent = "Click again to confirm";
+  arms[key] = setTimeout(() => { arms[key] = null; btn.textContent = btn.dataset.label; }, 4000);
+  return false;
+}
+$("#btnPause").onclick = togglePause; $("#btnPause2").onclick = togglePause;
+$("#btnStop").onclick = () => stopRun(false);
+$("#btnFlatStop").onclick = () => flatten(true);
+$("#btnFlatten2").onclick = () => flatten(false);
+
+function renderRail() {
+  const L = S.live || {}, job = L.job, rail = $("#rail");
+  const running = !!job?.running, info = job?.info || {};
+  const isLive = running && info.mode === "strategy" && !info.sim;
+  const hasSettings = running && !!L.settings;
+  rail.className = "rail " + (!running ? "idle" : isLive ? "live running" : "running");
+  let mode = "No bot running", sub = job ? `Last run ${job.returncode === 0 ? "finished" : "ended (code " + job.returncode + ")"}: ${job.run_dir || ""}` : "Start a run in the Run tab";
+  if (running) {
+    const strat = info.strategy ? `${info.strategy}${info.version ? " " + info.version : ""}` : "";
+    mode = info.mode === "observe" ? "Observing the live market" : info.mode === "flatten" ? "Flattening positions" :
+      info.sim ? `Rehearsal: ${strat}` : `LIVE TRADING: ${strat}`;
+    const el = job.elapsed, mm = Math.floor(el / 60), ss = Math.floor(el % 60);
+    sub = `${mm}:${String(ss).padStart(2, "0")} elapsed${info.sim ? `, ${info.scenario} market, ${info.teams} rivals, ${info.speed ? info.speed + "x speed" : "max speed"}` : ""}${L.settings?.pause ? ", PAUSED" : ""}`;
+  }
+  $("#railMode").textContent = mode; $("#railSub").textContent = sub;
+  const st = L.state?.length ? L.state[L.state.length - 1] : null, m = L.metrics;
+  const stats = [];
+  if (st) {
+    stats.push(["PnL", signed(st[1]), ""]);
+    const nd = Object.values(st[3] || {}); stats.push(["Net delta", nd.length ? nd.join(" / ") : "0", ""]);
+    const pos = Object.entries(st[2] || {}).filter(([, v]) => v).map(([k, v]) => `${k} ${v > 0 ? "+" : ""}${v}`).join("  ");
+    stats.push(["Positions", pos || "flat", ""]);
+  }
+  if (m) { stats.push(["Orders/s", fmt(m.ops_per_sec, 1), ""]); stats.push(["Rejects", String((m.orders || {}).rejected || 0), ""]); }
+  $("#railStats").innerHTML = (running || st) ? stats.map(([l, v]) => `<div class="stat ${l === "PnL" || l === "Net delta" ? "" : "opt"}"><b>${esc(v)}</b><span>${l}</span></div>`).join("") : "";
+  $("#btnStop").disabled = !running;
+  $("#btnPause").disabled = !hasSettings; $("#btnFlatStop").disabled = !hasSettings;
+  const paused = running && L.settings?.pause;
+  $("#btnPause").textContent = paused ? "Resume trading" : "Pause trading";
+  $("#btnPause2").textContent = paused ? "Resume trading" : "Pause trading";
+}
+
+/* ------------------------------------------------------------------ charts (SVG, no libraries) */
+function niceTicks(lo, hi, n = 5) {
+  if (!(hi > lo)) { hi = lo + 1; lo = lo - 1; }
+  const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => span / s <= n) || 10 * mag;
+  const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+function chart(el, { series, markers = [], height = 210, yfmt = v => fmt(v, 2), xfmt = v => fmt(v, 2) + " min", zero = false, xlabel = "min" }) {
+  const pts = series.flatMap(s => s.points);
+  if (!pts.length) { el.innerHTML = `<div class="empty">No data yet</div>`; return; }
+  const W = Math.max(320, el.clientWidth || 600), H = height, ml = 58, mr = 14, mt = 10, mb = 26;
+  let xs = pts.map(p => p[0]), ys = pts.map(p => p[1]).concat(markers.map(m => m.y));
+  let x0 = Math.min(...xs), x1 = Math.max(...xs); if (x1 === x0) x1 = x0 + 1;
+  let y0 = Math.min(...ys), y1 = Math.max(...ys); if (zero) { y0 = Math.min(0, y0); y1 = Math.max(0, y1); }
+  const pad = (y1 - y0) * 0.08 || 1; y0 -= pad; y1 += pad;
+  const X = x => ml + (x - x0) / (x1 - x0) * (W - ml - mr), Y = y => mt + (1 - (y - y0) / (y1 - y0)) * (H - mt - mb);
+  const yt = niceTicks(y0, y1, 4), xt = niceTicks(x0, x1, 6);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(series.map(s => s.name).join(", "))}">`;
+  yt.forEach(v => svg += `<line x1="${ml}" x2="${W - mr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--rule-2)"/><text x="${ml - 8}" y="${Y(v) + 4}" text-anchor="end" font-size="11" fill="var(--ink-3)">${esc(yfmt(v))}</text>`);
+  if (zero && y0 < 0 && y1 > 0) svg += `<line x1="${ml}" x2="${W - mr}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--ink-3)" stroke-width="1"/>`;
+  const tickTxt = v => String(+v.toFixed(2));
+  xt.forEach(v => svg += `<text x="${X(v)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--ink-3)">${esc(tickTxt(v))}</text>`);
+  svg += `<text x="${W - mr}" y="${H - 8}" text-anchor="end" font-size="11" fill="var(--ink-3)">${esc(xlabel)}</text>`;
+  series.forEach(s => {
+    if (!s.points.length) return;
+    let d = "";
+    s.points.forEach((p, i) => {
+      if (i === 0) d += `M${X(p[0])},${Y(p[1])}`;
+      else if (s.step) d += `H${X(p[0])}V${Y(p[1])}`;
+      else d += `L${X(p[0])},${Y(p[1])}`;
+    });
+    svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
+  });
+  markers.forEach(m => {
+    const x = X(m.x), y = Y(m.y), r = 5;
+    const tri = m.up ? `${x},${y - r} ${x - r},${y + r * .8} ${x + r},${y + r * .8}` : `${x},${y + r} ${x - r},${y - r * .8} ${x + r},${y - r * .8}`;
+    svg += `<polygon points="${tri}" fill="${m.color}" stroke="var(--panel)" stroke-width="1.5"/>`;
+  });
+  svg += `<line class="xh" x1="0" x2="0" y1="${mt}" y2="${H - mb}" stroke="var(--ink-3)" stroke-dasharray="3 3" visibility="hidden"/>`;
+  svg += `<rect x="${ml}" y="${mt}" width="${W - ml - mr}" height="${H - mt - mb}" fill="transparent"/></svg>`;
+  const legend = series.length > 1 ? `<div class="legend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join("")}</div>` : "";
+  el.innerHTML = legend + svg + `<div class="tip"></div>`;
+  const svgEl = $("svg", el), tip = $(".tip", el), xh = $(".xh", el);
+  svgEl.onmousemove = ev => {
+    const rect = svgEl.getBoundingClientRect(), px = (ev.clientX - rect.left) * W / rect.width;
+    if (px < ml || px > W - mr) { tip.style.display = "none"; xh.setAttribute("visibility", "hidden"); return; }
+    const x = x0 + (px - ml) / (W - ml - mr) * (x1 - x0);
+    const rows = series.map(s => {
+      let best = null; for (const p of s.points) { if (p[0] <= x) best = p; else break; }
+      return best ? `<div><b style="color:${s.color}">${esc(s.name)}</b> ${esc(yfmt(best[1]))}</div>` : "";
+    }).join("");
+    tip.innerHTML = `<div class="faint">${esc(xfmt(x))}</div>${rows}`;
+    xh.setAttribute("x1", px); xh.setAttribute("x2", px); xh.setAttribute("visibility", "visible");
+    tip.style.display = "block";
+    const left = ev.clientX - el.getBoundingClientRect().left;
+    tip.style.left = Math.min(left + 12, el.clientWidth - tip.offsetWidth - 4) + "px"; tip.style.top = "26px";
+  };
+  svgEl.onmouseleave = () => { tip.style.display = "none"; xh.setAttribute("visibility", "hidden"); };
+}
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* ------------------------------------------------------------------ monitor */
+function renderMonitor(data) {
+  data = data || S.view || S.live;
+  const has = data && data.run_dir;
+  $("#monEmpty").hidden = !!has; $("#monBody").hidden = !has;
+  if (!has || S.tab !== "monitor") return;
+  const t0 = data.t0 ?? data.state?.[0]?.[0] ?? 0, mins = t => (t - t0) / 60;
+  $("#monRunName").textContent = data.run_dir + (S.view ? " (past run)" : "");
+  const st = data.state || [];
+  chart($("#chPnl"), { series: [{ name: "PnL", color: css("--s1"), points: st.filter(r => r[1] != null).map(r => [mins(r[0]), r[1]]) }], zero: true });
+  const insts = [...new Set(st.flatMap(r => Object.keys(r[2] || {})))].sort();
+  const colors = [css("--s1"), css("--s2"), "#1c8a5a", "#7a5ad6"];
+  chart($("#chPos"), { series: insts.map((k, i) => ({ name: k, color: colors[i % 4], step: true, points: st.map(r => [mins(r[0]), (r[2] || {})[k] || 0]) })), zero: true, yfmt: v => fmt(v, 0) });
+  const mids = data.mids || {}, minst = Object.keys(mids).sort((a, b) => a.length - b.length);
+  const fills = (data.fills || []).filter(f => minst.includes(f[1]));
+  chart($("#chPx"), {
+    series: minst.map((k, i) => ({ name: k, color: colors[i % 4], step: true, points: mids[k].map(p => [mins(p[0]), p[1]]) })),
+    markers: fills.slice(-200).map(f => ({ x: mins(f[0]), y: f[3], up: f[2] === "bid", color: colors[Math.max(0, minst.indexOf(f[1])) % 4] })),
+    height: 240,
+  });
+  renderMetrics(data.metrics);
+  renderSettings(data);
+  renderEvents(data.events || [], t0);
+  if (document.activeElement !== $("#notes") && !S.notesDirty) $("#notes").value = data.notes || "";
+  const con = $("#monConsole"), atBottom = con.scrollTop + con.clientHeight >= con.scrollHeight - 20;
+  con.textContent = (S.view ? [] : (data.console || [])).join("\n") || (S.view ? "Console output is in console.log of this run." : "");
+  if (atBottom) con.scrollTop = con.scrollHeight;
+}
+function renderMetrics(m) {
+  if (!m) { $("#monPairs").innerHTML = `<div class="empty">First monitor update arrives after ~10 s.</div>`; $("#monFills").innerHTML = ""; $("#monHealth").innerHTML = ""; return; }
+  $("#monMetricsAge").textContent = `updated at ${fmt(m.elapsed, 0)} s`;
+  const rows = Object.entries(m.pairs || {}).map(([name, p]) => {
+    const [P, D] = name.split("/"), q = (p.our_quotes || {})[D] || {}, ob = p.others_at_or_better || {};
+    return `<tr><td>${esc(name)}</td><td class="num">${fmt(p.spread_ticks?.[P], 1)} / ${fmt(p.spread_ticks?.[D], 1)}</td>
+      <td class="num">${fmt(p.crossed_pct, 1)}%</td><td class="num">${q.bid ? q.bid[0] + " × " + q.bid[1] : "–"}</td><td class="num">${q.ask ? q.ask[0] + " × " + q.ask[1] : "–"}</td>
+      <td class="num">${ob[D + ":bid"] ?? "–"} / ${ob[D + ":ask"] ?? "–"}</td><td class="num">${p.net_delta}</td>
+      <td class="num">${(p.market_trades?.[P] || [0])[0]} / ${(p.market_trades?.[D] || [0])[0]}</td></tr>`;
+  }).join("");
+  $("#monPairs").innerHTML = `<table><thead><tr><th>Pair</th><th class="num">Spread P / D (ticks)</th><th class="num">Crossed</th>
+    <th class="num">Our bid</th><th class="num">Our ask</th><th class="num">Rivals at/better bid / ask</th><th class="num">Net delta</th><th class="num">Market trades P / D</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const mk = m.markout_ticks || {}, tags = Object.keys(m.fills || {});
+  $("#monFills").innerHTML = tags.length ? `<table><thead><tr><th>Reason</th><th class="num">Fills</th><th class="num">Lots</th><th class="num">Edge at fill</th>
+    <th class="num">After 1 s</th><th class="num">After 5 s</th><th class="num">After 30 s</th></tr></thead><tbody>${tags.map(t => {
+      const f = m.fills[t]; const v = h => mk[h]?.[t];
+      return `<tr><td>${esc(t)}</td><td class="num">${f.n}</td><td class="num">${f.vol}</td><td class="num ${cls(f.edge_ticks_per_lot)}">${signed(f.edge_ticks_per_lot)}</td>
+        <td class="num ${cls(v("1s"))}">${signed(v("1s"))}</td><td class="num ${cls(v("5s"))}">${signed(v("5s"))}</td><td class="num ${cls(v("30s"))}">${signed(v("30s"))}</td></tr>`;
+    }).join("")}</tbody></table>` : `<div class="empty">No fills in the last window.</div>`;
+  const o = m.orders || {}, lat = m.latency_ms || {}, ins = lat.insert_order;
+  const health = [["Orders / s", fmt(m.ops_per_sec, 1)], ["Rejected", o.rejected || 0], ["Throttled by us", o.throttled || 0],
+    ["Insert latency", ins ? fmt(ins.avg, 1) + " ms" : "–"], ["Strategy loop", fmt(m.loop_ms?.strategy_avg, 1) + " ms"], ["Recorder", fmt(m.loop_ms?.recorder_avg, 1) + " ms"]];
+  const rej = Object.entries(o).filter(([k]) => k.startsWith("reject:")).map(([k, v]) => `${k.slice(7)} (${v})`).join(", ");
+  $("#monHealth").innerHTML = health.map(([l, v]) => `<div><b>${esc(v)}</b><span>${l}</span></div>`).join("") + (rej ? `<div style="grid-column:1/-1" class="note bad">Rejects: ${esc(rej)}</div>` : "");
+}
+const SET_ORDER = ["size", "min_profit", "edge", "skew", "soft", "take_min_edge", "min_edge", "unwind_edge", "penny", "limit", "end_in_secs"];
+function renderSettings(data) {
+  const s = data.settings;
+  $("#setPanel").hidden = !s;
+  if (!s) return;
+  const editable = !S.view && data.job?.running !== false && (S.live?.job?.running);
+  const keys = Object.keys(s).filter(k => !["pause", "flatten"].includes(k));
+  keys.sort((a, b) => (SET_ORDER.indexOf(a) + 1 || 99) - (SET_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b));
+  if (document.activeElement && $("#setGrid").contains(document.activeElement)) return;  // don't redraw while typing
+  const types = S.meta.strategies.evolved.flag_types;
+  const field = k => {
+    const v = k in S.settingsDraft ? S.settingsDraft[k] : s[k];
+    const t = typeof s[k] === "boolean" ? "bool" : (types[k] === "str" ? "text" : "number");
+    return inputFor(k, v, t, "", k in S.settingsDraft, "s_");
+  };
+  const main = keys.filter(k => SET_ORDER.includes(k) || k === "hedge_when_paused"), rest = keys.filter(k => !main.includes(k));
+  const open = $("#setFlags")?.open ? "open" : "";
+  $("#setGrid").innerHTML = `<div class="grid">${main.map(field).join("")}</div>` +
+    (rest.length ? `<details id="setFlags" ${open} style="margin-top:12px"><summary>Strategy flags (${rest.length})</summary><div class="grid">${rest.map(field).join("")}</div></details>` : "");
+  $$("#setGrid input").forEach(el => { el.disabled = !editable; el.oninput = el.onchange = () => {
+    const v = readInput(el), k = el.dataset.name;
+    if (v === s[k]) delete S.settingsDraft[k]; else S.settingsDraft[k] = v;
+    el.closest("label").classList.toggle("changed", k in S.settingsDraft); updateSetButtons(editable);
+  }; });
+  ["#btnPause2", "#btnFlatten2"].forEach(b => $(b).disabled = !editable);
+  updateSetButtons(editable);
+}
+function updateSetButtons(editable) {
+  const n = Object.keys(S.settingsDraft).length;
+  $("#btnApply").disabled = !editable || !n; $("#btnRevert").disabled = !n;
+  $("#setStatus").textContent = !editable ? "Read-only: this run is not active" : n ? `${n} change${n > 1 ? "s" : ""} not applied yet` : "";
+}
+$("#btnApply").onclick = async () => {
+  const ch = { ...S.settingsDraft };
+  try { await setSetting(ch); S.settingsDraft = {}; toast("Applied: " + Object.entries(ch).map(([k, v]) => `${k}=${v}`).join(", ")); poll(); } catch {}
+};
+$("#btnRevert").onclick = () => { S.settingsDraft = {}; document.activeElement?.blur(); renderMonitor(); };
+function renderEvents(evs, t0) {
+  const rows = evs.slice().reverse().map(e => {
+    let d = e.kind === "settings" ? Object.entries(e.changes || {}).map(([k, v]) => `${k}: ${v[0]} → ${v[1]}`).join(", ")
+      : e.kind === "error" ? `${e.where}: ${e.error}` : e.reason || e.stream || e.i || "";
+    return `<tr><td class="num">${fmt((e.t - t0), 0)} s</td><td>${esc(e.kind)}</td><td class="${e.kind === "error" ? "neg" : ""}">${esc(d)}</td></tr>`;
+  }).join("");
+  $("#monEvents").innerHTML = rows ? `<table><tbody>${rows}</tbody></table>` : `<div class="empty">No events yet.</div>`;
+}
+$("#notes").oninput = () => S.notesDirty = true;
+$("#btnSaveNotes").onclick = async () => {
+  const dir = (S.view || S.live)?.run_dir; if (!dir) return;
+  try { await api("/api/notes", { dir, text: $("#notes").value }); S.notesDirty = false; toast("Notes saved"); } catch (e) { toast(e.message, true); }
+};
+
+/* ------------------------------------------------------------------ runs */
+async function loadRuns() {
+  let runs; try { runs = await api("/api/runs"); } catch (e) { toast(e.message, true); return; }
+  $("#runsTable").innerHTML = runs.length ? `<table><thead><tr><th>Run</th><th>What</th><th class="num">PnL</th><th class="num">Rank</th></tr></thead><tbody>${runs.map(r => {
+    const when = r.name.slice(0, 15).replace(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/, "$3/$2 $4:$5");
+    const what = [r.mode === "sim" ? `sim ${r.scenario}` : r.mode, r.strategy, r.version].filter(Boolean).join(", ");
+    return `<tr class="click ${S.selRun === r.dir ? "sel" : ""}" data-dir="${esc(r.dir)}"><td>${esc(when)}${r.group !== "." ? `<div class="faint">${esc(r.group)}</div>` : ""}</td>
+      <td>${esc(what)}${r.errors ? ` <span class="neg">${r.errors} errors</span>` : ""}</td><td class="num ${cls(r.pnl)}">${signed(r.pnl)}</td>
+      <td class="num">${r.rank ? r.rank + "/" + r.n : "–"}</td></tr>`;
+  }).join("")}</tbody></table>` : `<div class="empty">No runs yet. Every run you start is saved here.</div>`;
+  $$("#runsTable tr.click").forEach(tr => tr.onclick = () => openRun(tr.dataset.dir));
+}
+$("#btnRefreshRuns").onclick = loadRuns;
+async function openRun(dir) {
+  S.selRun = dir; $$("#runsTable tr").forEach(tr => tr.classList.toggle("sel", tr.dataset.dir === dir));
+  let d; try { d = await api("/api/run?dir=" + encodeURIComponent(dir)); } catch (e) { toast(e.message, true); return; }
+  const m = d.meta || {}, fin = m.final || {};
+  $("#runDetail").innerHTML = `<div class="head"><h2>${esc(dir.split("/").pop())}</h2><div class="row">
+      <button class="btn" id="rdCharts">Open in Monitor</button><button class="btn" id="rdAnalyze">${d.report ? "Re-analyze" : "Analyze"}</button>
+      <a class="btn" href="api/pack?dir=${encodeURIComponent(dir)}">Download zip</a></div></div>
+    <div class="kv" style="margin-bottom:12px">
+      <div><b class="${cls(fin.pnl)}">${signed(fin.pnl)}</b><span>Final PnL</span></div>
+      <div><b>${m.rank ? m.rank + " / " + m.n_competitors : "–"}</b><span>Rank (sim)</span></div>
+      <div><b>${esc(m.strategy || "observe")}</b><span>${esc(JSON.stringify(m.params || {}))}</span></div>
+      <div><b>${esc(m.stop_reason || "–")}</b><span>${m.errors ? m.errors + " errors" : "no errors"}</span></div></div>
+    <div class="md" id="rdReport">${d.report ? md(d.report) : `<div class="empty">No report yet. Click Analyze.</div>`}</div>
+    ${d.has_overview ? `<img class="overview" alt="PnL, positions and prices for this run" src="api/file?dir=${encodeURIComponent(dir)}&name=overview.png&t=${Date.now()}">` : ""}`;
+  $("#rdAnalyze").onclick = async () => { $("#rdAnalyze").disabled = true; try { await api("/api/analyze", { dir }); toast("Report written"); openRun(dir); loadRuns(); } catch (e) { toast(e.message, true); } };
+  $("#rdCharts").onclick = () => { S.view = d; S.settingsDraft = {}; showTab("monitor"); toast("Showing a past run. Start or stop a run to return to live."); };
+}
+function md(text) {
+  const lines = text.split("\n"), out = []; let i = 0;
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`(.+?)`/g, "<code>$1</code>").replace(/(^|\s)_([^_]+?)_(?=\s|$)/g, "$1<i>$2</i>");
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^\|/.test(l)) {
+      const rows = []; while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]);
+      const cells = r => r.replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+      const head = cells(rows[0]), body = rows.slice(2).map(cells);
+      const num = c => /^[-+]?[\d.,%]+$/.test(c);
+      out.push(`<div class="tablewrap"><table><thead><tr>${head.map(h => `<th>${inline(h)}</th>`).join("")}</tr></thead><tbody>${body.map(r => `<tr>${r.map(c => `<td class="${num(c) ? "num" : ""}">${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+      continue;
+    }
+    const h = l.match(/^(#{1,3})\s+(.*)/);
+    if (h) { out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); i++; continue; }
+    if (/^- /.test(l)) { const items = []; while (i < lines.length && /^- /.test(lines[i])) items.push(lines[i++].slice(2)); out.push(`<ul>${items.map(x => `<li>${inline(x)}</li>`).join("")}</ul>`); continue; }
+    if (l.trim()) out.push(`<p>${inline(l)}</p>`);
+    i++;
+  }
+  return out.join("");
+}
+
+/* ------------------------------------------------------------------ backtest */
+async function runBench() {
+  try {
+    await api("/api/bench", { variants: $("#bVariants").value, scenario: $("#bScenario").value, seeds: +$("#bSeeds").value,
+      teams: +$("#bTeams").value, every: +$("#bEvery").value, exit: $("#bExit").value });
+    toast("Backtest started"); pollBench();
+  } catch (e) { toast(e.message, true); }
+}
+let benchTimer;
+async function pollBench() {
+  clearTimeout(benchTimer);
+  let b; try { b = await api("/api/bench"); } catch { return; }
+  const running = b.job?.running;
+  const lines = b.output || [];
+  $("#benchOut").textContent = lines.join("\n") || (b.job ? "Running..." : "Results appear here.");
+  const rx = /^(\S+)\s+(-?[\d.]+)\s+([\d.]+)\s+([\d.]+)\/(\d+)\s+(\d+)\/(\d+)\s*(-?[\d.]+)\s+(\d+)\s*$/;
+  const rows = lines.map(l => l.match(rx)).filter(Boolean);
+  const title = lines.find(l => /held-out markets/.test(l)) || "";
+  $("#benchTable").innerHTML = rows.length ? `<div class="help" style="margin-bottom:6px">${esc(title)}</div><table><thead><tr><th>Variant</th>
+    <th class="num">Mean PnL</th><th class="num">Spread (sd)</th><th class="num">Mean rank</th><th class="num">Finished 1st</th>
+    <th class="num">vs best rival</th><th class="num">Max net delta</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r[1])}</td>
+    <td class="num ${cls(+r[2])}">${signed(+r[2], 1)}</td><td class="num">${r[3]}</td><td class="num">${r[4]} / ${r[5]}</td>
+    <td class="num">${r[6]} of ${r[7]}</td><td class="num ${cls(+r[8])}">${signed(+r[8], 1)}</td><td class="num">${r[9]}</td></tr>`).join("")}</tbody></table>`
+    : `<div class="empty">${running ? "Running: results appear when every market has finished." : b.job ? "No results: open Raw output to see why." : "Pick variants and press Run backtest."}</div>`;
+  $("#btnBench").disabled = !!running; $("#btnBenchStop").disabled = !running;
+  $("#benchStatus").textContent = running ? `Running for ${fmt(b.job.elapsed, 0)} s` : b.job ? `Finished in ${fmt(b.job.elapsed, 0)} s` : "";
+  if (running) benchTimer = setTimeout(pollBench, 1500);
+}
+$("#btnBench").onclick = runBench;
+$("#btnBenchStop").onclick = async () => { await api("/api/bench/stop", {}); pollBench(); };
+
+/* ------------------------------------------------------------------ polling */
+let pollTimer, lastRunning = null;
+async function poll() {
+  clearTimeout(pollTimer);
+  try {
+    S.live = await api("/api/live");
+    const running = !!S.live.job?.running;
+    if (running && S.view && S.live.run_dir) { S.view = null; }
+    renderRail(); updateCmd();
+    const con = $("#runConsole"), atBottom = con.scrollTop + con.clientHeight >= con.scrollHeight - 20;
+    con.textContent = (S.live.console || []).join("\n");
+    if (atBottom) con.scrollTop = con.scrollHeight;
+    $("#consoleStatus").textContent = S.live.job ? (running ? "running" : `exited (${S.live.job.returncode})`) : "";
+    if (S.tab === "monitor" && !S.view) renderMonitor(S.live);
+    if (lastRunning && !running && S.tab === "runs") loadRuns();
+    lastRunning = running;
+    pollTimer = setTimeout(poll, running ? 1000 : 3000);
+  } catch (e) {
+    $("#railMode").textContent = "Control panel server is not reachable";
+    $("#railSub").textContent = "Restart it with: python ui/server.py";
+    pollTimer = setTimeout(poll, 3000);
+  }
+}
+
+/* ------------------------------------------------------------------ boot */
+(async function boot() {
+  try { S.meta = await api("/api/meta"); } catch (e) { toast("Could not load: " + e.message, true); return; }
+  const strats = Object.keys(S.meta.strategies);
+  $("#selStrategy").innerHTML = strats.map(s => `<option>${s}</option>`).join("");
+  $("#selStrategy").value = store("strategy") || "evolved";
+  const vers = S.meta.strategies.evolved.version_order;
+  $("#selVersion").innerHTML = vers.map(v => `<option>${v}</option>`).join("");
+  $("#selVersion").value = store("version") || vers[vers.length - 1];
+  const scen = S.meta.scenarios.map(s => `<option>${s}</option>`).join("");
+  $("#simScenario").innerHTML = scen; $("#bScenario").innerHTML = scen;
+  $("#simScenario").value = "crowded"; $("#bScenario").value = "crowded";
+  if (!S.meta.optibook) {
+    $("#optibookNote").hidden = false;
+    $("#optibookNote").textContent = "The Optibook client is not installed on this machine, so Observe, Trade live and Flatten now are unavailable here. Rehearse in the simulator, or run this panel where the hackathon client is installed.";
+    if (S.mode !== "sim") S.mode = "sim";
+  }
+  ["live", "observe", "flatten"].forEach(m => $(`#modeSeg button[data-mode="${m}"]`).disabled = !S.meta.optibook);
+  renderStrategyForm(); setMode(S.mode);
+  window.addEventListener("resize", () => { if (S.tab === "monitor") renderMonitor(); });
+  showTab(store("tab") || "run");
+  poll(); pollBench();
+})();
+</script>
+</body>
+</html>

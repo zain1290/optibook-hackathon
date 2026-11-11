@@ -150,7 +150,7 @@ def main():
 
     if meta.get("leaderboard"):
         R.append(f"## Leaderboard (sim): we are **{meta['rank']}/{meta['n_competitors']}**\n")
-        R.append(table(["rank", "team", "pnl", "volume", "max |net delta|"],
+        R.append(table(["rank", "team", "pnl", "volume", "max abs net delta"],
                        [[k + 1, r["name"], r["pnl"], r["volume"], r["max_abs_net_delta"]]
                         for k, r in enumerate(meta["leaderboard"])]))
         R.append("")
@@ -288,9 +288,9 @@ def main():
                 tot += tb - ta
                 nz += (tb - ta) if va else 0
             rows.append([k, max(abs(v) for _, v in series), 100 * nz / tot if tot else None])
-        R.append(table(["instrument", "max |position|"], sorted(maxpos.items())))
+        R.append(table(["instrument", "max abs position"], sorted(maxpos.items())))
         R.append("")
-        R.append(table(["pair", "max |net delta|", "% time net delta != 0"], rows))
+        R.append(table(["pair", "max abs net delta", "% time net delta not 0"], rows))
         R.append("")
 
     # ---------------------------------------------------------------- errors

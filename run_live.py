@@ -48,10 +48,15 @@ def make_session(a):
         m, _ = build(a.sim, a.seed, n_teams=a.teams)
         m.add_account("us", Limits(**TEAM_LIMITS))
         e = SimExchange(m, "us")
+        wall0 = time.time()
 
         def wait(sec):
             for _ in range(max(1, round(sec / m.dt))):
                 m.step()
+            if a.speed > 0:  # rehearsal: keep the simulated clock in step with the wall clock
+                ahead = m.t / a.speed - (time.time() - wall0)
+                if ahead > 0:
+                    time.sleep(ahead)
         return e, (lambda: m.t), wait, {"mode": "sim", "scenario": a.sim, "seed": a.seed, "teams": a.teams,
                                         "limits": TEAM_LIMITS, "dt": m.dt, "_market": m}
     from optibook.synchronous_client import Exchange  # only on the hackathon machines
@@ -80,6 +85,8 @@ def main():
     ap.add_argument("--sim", choices=["basic", "competitive", "hard", "crowded", "crowded_tight", "crowded_sticky", "crowded_clones"], help="run offline in the simulator")
     ap.add_argument("--teams", type=int, default=12)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--speed", type=float, default=0.0,
+                    help="sim only: 1 = real time (rehearsal), 5 = 5x faster, 0 = as fast as possible")
     a = ap.parse_args()
     if a.sim and a.minutes is None:
         a.minutes = 10
@@ -132,8 +139,13 @@ def main():
     n, was_paused, reason = 0, False, "time limit"
     pause_ctx = None
     try:
+        stop_file = os.path.join(run.dir, "STOP")  # created by the control panel (or by hand) to stop cleanly
         while t_end is None or clock() < t_end:
             t0 = time.perf_counter()
+            if os.path.exists(stop_file):
+                reason = "stop requested"
+                print("stop requested")
+                break
             if strat is not None:
                 settings.poll()
                 fl = settings.flags

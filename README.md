@@ -3,6 +3,20 @@
 Local Optibook-like simulator + two baseline strategies + notes from past winners.
 Strategies use only the real `optibook.synchronous_client.Exchange` API, so the same file runs in the sim and live.
 
+## Control panel (no command line needed)
+
+```bash
+python ui/server.py          # opens http://127.0.0.1:8050 in your browser
+```
+
+One page for everything: **Run** (observe the live market, trade live, rehearse on the simulator in real time, flatten now;
+pick strategy, version and every parameter), **Monitor** (PnL, positions, prices with our fills, quotes vs rivals,
+where the money comes from, health, events, console, notes), **live settings** (change size, min_profit or any strategy
+flag while the bot runs, pause/resume, flatten), **Past runs** (report, chart, download zip) and **Backtest** (compare
+versions or tweaks on held-out markets). The status bar is blue for observe/rehearsal and red-striped for live trading;
+Stop and Flatten are always in it. Live and flatten modes ask for a second click. Standard library only, works offline.
+`--host 0.0.0.0` makes it reachable from another machine (e.g. a hackathon VM); `--port` changes the port.
+
 ## Quick start
 
 ```bash

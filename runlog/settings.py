@@ -19,6 +19,8 @@ def current_settings(strategy):
     out = {k: getattr(strategy, k) for k in keys if hasattr(strategy, k)}
     if hasattr(strategy, "taker"):
         out["take_min_edge"] = strategy.taker.min_edge
+    for k, v in sorted(getattr(strategy, "f", {}).items()):  # evolved: every feature flag is live-editable
+        out.setdefault(k, v)
     out.update({"pause": False, "flatten": False, "hedge_when_paused": True})
     return out
 
@@ -32,6 +34,13 @@ class Settings:
             with open(path, "w") as f:
                 json.dump(current_settings(strategy), f, indent=2)
         self.poll(force=True)
+
+    def _flag_names(self):
+        try:
+            from strategies.evolved import ALL_FLAGS
+        except Exception:
+            ALL_FLAGS = set()
+        return set(self.strategy.f) | set(ALL_FLAGS)
 
     def poll(self, force=False):
         if not force and time.monotonic() - self._last_check < self.check_every:
@@ -69,6 +78,11 @@ class Settings:
                 if old != v:
                     changes[k] = [old, v]
                 setattr(self.strategy, attr, v)
+            elif isinstance(getattr(self.strategy, "f", None), dict) and k in self._flag_names():
+                old = self.strategy.f.get(k)
+                if old != v:
+                    changes[k] = [old, v]
+                self.strategy.f[k] = v
             else:
                 rejected[k] = v
             self._applied[k] = v
