@@ -928,7 +928,7 @@ function renderAdvice(data) {
     if (q5 != null && q5 < -0.3) add("warn", "Prices move against our quotes after we trade", stocks
       ? `Quotes lose ${fmt(-q5, 2)} ticks 5 seconds later on average. Raise Distance from fair value (quote_edge) to 2, or lower Quote size.`
       : `Quotes lose ${fmt(-q5, 2)} ticks 5 seconds later on average. Raise Minimum profit per trade (to about 0.8) or lower Quote size.`, stocks ? "p-quote_edge" : "p-min_profit");
-    if (t5 != null && t5 < -0.3) add("warn", "Picking off is losing", `Picked-off trades are ${fmt(-t5, 2)} ticks worse 5 seconds later. Raise Pick-off threshold (take_edge) to 2, or set it to 0.`, "p-take_edge");
+    if (t5 != null && t5 < -0.3) add("warn", "Picking off is losing", `Picked-off trades are ${fmt(-t5, 2)} ticks worse 5 seconds later: our fair value is less accurate than the threshold assumes. Raise Pick-off threshold (take_edge) one step: 0.5 to 1, 1 to 2.`, "p-take_edge");
     if (n5 != null && n5 < 0) add("warn", "News trades are losing", "Prices are not following the news the way the words say. Set Trade on news (news_trade_size) to 0.", "p-news_trade_size");
     if ((o.throttled || 0) > 20) add("warn", "The bot is often held back by its order budget", stocks
       ? "Fine occasionally. If constant, set 'Only the widest stocks' (max_stocks) to 4, or raise Keep quotes in place (sticky_ticks)."

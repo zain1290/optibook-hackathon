@@ -60,7 +60,7 @@ The recommended bot ('Everything', code name combo) combines four ideas.
 
 **1. Quoting just inside the exchange maker.** The exchange maker's quotes are centred on fair value, a few ticks wide. The bot places its own [quotes](#g-quote) 1 tick better, but always at least 'Distance from fair value' away from fair value. The background traders' 20-lot orders then trade with us first, and we earn the gap between our price and fair value. When we hold a position, the bot [skews](#g-skew) its quotes so the position shrinks again.
 
-**2. Picking off mistakes.** Other teams leave quotes behind after a price move ([stale quotes](#g-stale)), or dump positions below fair value. The bot [picks those off](#g-pick-off): it buys anything offered 1 tick or more under fair value and sells into anything bid 1 tick or more over it. In the simulator this earned more than everything else together.
+**2. Picking off mistakes.** Other teams leave quotes behind after a price move ([stale quotes](#g-stale)), or dump positions below fair value. The bot [picks those off](#g-pick-off): it buys anything offered half a tick or more under fair value and sells into anything bid half a tick or more over it (setting take_edge; 0.5 beat 1 in every crowded simulator market, but needs an accurate fair value, so watch its markouts). In the simulator this earned more than everything else together.
 
 **3. Stepping aside on news.** When a post names a stock (or its sector), the bot pulls its quotes on that stock for a few seconds, so nobody can trade against us at old prices. Optionally it also trades in the direction of the news.
 
@@ -188,7 +188,7 @@ The simulated rivals and exchange traders are educated guesses, not the real thi
 | What you see | What it means | What to do |
 |---|---|---|
 | 'Our waiting quote was hit' negative after 5 s | Prices move against us right after we trade: faster traders or news pick off our quotes. | Raise Distance from fair value (quote_edge) to 2, or lower Quote size. |
-| 'Picked off a wrong quote' negative after 5 s | What looked like a mistake was a real price move. | Raise Pick-off threshold (take_edge) to 2, or 0 to switch off. |
+| 'Picked off a wrong quote' negative after 5 s | What looked like a mistake was a real price move, or our fair value is off. | Raise Pick-off threshold (take_edge) one step: 0.5 to 1, then 2; 0 switches it off. |
 | 'Traded on news' negative | Prices do not follow the words. | Trade on news back to 0. |
 | Rejected orders > 0 | The exchange refused orders. The Health box and Events show why. | Position limit: lower Quote size or Soft limit. Rate limit: lower Order budget. Price band: report it. |
 | Held back (throttled) is high | The bot wanted to send more orders than its budget. | Set 'Only the widest stocks' to 4, or raise 'Keep quotes in place'. |

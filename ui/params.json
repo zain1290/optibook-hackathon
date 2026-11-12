@@ -454,8 +454,8 @@
    "group": "taking",
    "unit": "ticks",
    "short": "Buy or sell immediately when someone else's quote is this many ticks through fair value. 0 switches picking off off.",
-   "long": "Other teams leave quotes behind after a price move, or dump inventory below fair value. Grabbing those first was worth more than everything else together in the simulator (+2,000 vs about 0 without). Positions from picking off never go past the soft limit.",
-   "when": "Leave at 1. Raise to 2 if 'take' markouts in the monitor turn negative."
+   "long": "Other teams leave quotes behind after a price move, or dump inventory below fair value. Grabbing those first is where almost all the profit came from in the simulator. 0.5 also takes the small mistakes that rivals using 1 ignore: across 12 crowded simulator markets that lifted profit about 50% and won all 12 (no change with no rivals). It only works if our fair value is right to within half a tick, which the real market has to confirm. Positions from picking off never go past the soft limit.",
+   "when": "Start at 0.5. If 'Picked off a wrong quote' is negative after 5 s, raise to 1 (and to 2 if still negative). 0 switches it off."
   },
   "take_size": {
    "label": "Pick-off size",
