@@ -47,12 +47,13 @@ class StockMM:
     name = "stock_mm"
     LIVE = ("size", "inside", "quote_edge", "skew_per_lot", "soft_limit", "position_limit", "sticky_ticks",
             "take_edge", "take_size", "news_pause", "news_trade_size", "news_min_score", "wind_down_s",
-            "max_stocks", "fair", "depth_lots", "quote_mode")
+            "max_stocks", "fair", "depth_lots", "quote_mode", "move_ticks", "move_window", "move_pause", "max_loss")
 
     def __init__(self, pairs=None, instruments=None, position_limit=300, soft_limit=None, size=10, inside=1,
                  quote_edge=1.5, skew_per_lot=0.02, sticky_ticks=2, take_edge=0.5, take_size=20, news_pause=3.0,
                  news_trade_size=0, news_min_score=1, wind_down_s=60.0, max_stocks=0, fair="deep", depth_lots=200,
-                 quote_mode="both", reserve_ops=6, max_ops_per_sec=15, clock=None, hedge_cooldown=0.0):
+                 quote_mode="both", move_ticks=10.0, move_window=5.0, move_pause=5.0, max_loss=0.0,
+                 reserve_ops=6, max_ops_per_sec=15, clock=None, hedge_cooldown=0.0):
         self.clock = clock or time.monotonic
         self.instruments = [s for s in instruments.split(",")] if isinstance(instruments, str) else instruments
         self.position_limit, self.size, self.inside, self.quote_edge = position_limit, size, inside, quote_edge
@@ -71,6 +72,13 @@ class StockMM:
         self.last_fair = {}
         self.quote_mode = quote_mode  # both | reduce (only the side that shrinks our position) | off
         self.extra_delta = {}  # stock -> delta held through derivatives (set by combo); worked off via skew
+        # fast-move guard (real market, 12 Nov: CRWV jumped 3% in 5 s while we were short 33)
+        self.move_ticks, self.move_window, self.move_pause = move_ticks, move_window, move_pause
+        self.fhist = {}        # stock -> deque of (t, fair in ticks)
+        self.moving = {}       # stock -> (until, direction +1 up / -1 down)
+        # loss stop: close everything and stop trading if this run loses more than max_loss (0 = off)
+        self.max_loss = max_loss
+        self.start_pnl, self.halted, self._t_pnl = None, False, -1e18
 
     # ------------------------------------------------------------------ setup
     @property
@@ -102,6 +110,8 @@ class StockMM:
         ctx.limit = self.position_limit
         self._refresh(e)
         now = self.clock()
+        if self.check_loss(e, ctx, now):
+            return
         self.on_news(e, ctx, now)
         pos = e.get_positions()
         plans, dangerous = [], []
@@ -186,6 +196,8 @@ class StockMM:
         self.last_fair[i] = ctx.px(i, fair)
         plan["spread"] = ba - bb
         plan.update(fair=fair, bids=bids, asks=asks)
+        if self.track_move(i, fair, now):  # price running: no quotes; picking off only to reduce the position
+            return plan
         limit, soft = self.position_limit, self.soft_limit
         if self.end_time is not None and self.wind_down_s:
             left = self.end_time - now
@@ -216,6 +228,62 @@ class StockMM:
         plan["want"] = {"bid": (bid if bsz else None, bsz), "ask": (ask if asz else None, asz)}
         return plan
 
+    def track_move(self, i, fair, now):
+        """True while stock i is moving fast: fair value changed by move_ticks or more within move_window s."""
+        if not self.move_ticks:
+            return False
+        h = self.fhist.get(i)
+        if h is None:
+            from collections import deque
+            h = self.fhist[i] = deque()
+        h.append((now, fair))
+        while h and now - h[0][0] > self.move_window:
+            h.popleft()
+        lo = min(x[1] for x in h)
+        hi = max(x[1] for x in h)
+        if hi - lo >= self.move_ticks:
+            d = 1 if fair - lo >= hi - fair else -1
+            if self.moving.get(i, (-1e18, 0))[0] <= now:
+                self.ctx.log("fast_move", instrument=i, ticks=round(hi - lo, 1), direction=d)
+            self.moving[i] = (now + self.move_pause, d)
+        return self.moving.get(i, (-1e18, 0))[0] > now
+
+    def check_loss(self, e, ctx, now):
+        """Loss stop. Once triggered: cancel everything, close positions, never trade again this run."""
+        if self.halted:
+            self._close_all(e, ctx)
+            return True
+        if not self.max_loss or now - self._t_pnl < 1.0:
+            return False
+        self._t_pnl = now
+        try:
+            pnl = float(e.get_pnl())
+        except Exception:
+            return False
+        if self.start_pnl is None:
+            self.start_pnl = pnl
+            return False
+        if pnl - self.start_pnl < -self.max_loss:
+            self.halted = True
+            ctx.log("loss_stop", pnl=pnl, start=self.start_pnl, max_loss=self.max_loss)
+            print(f"LOSS STOP: run PnL {pnl - self.start_pnl:.1f} < -{self.max_loss}: closing and stopping")
+            self._close_all(e, ctx)
+            return True
+        return False
+
+    def _close_all(self, e, ctx):
+        pos = e.get_positions()
+        for i in self.ids:
+            if e.get_outstanding_orders(i):
+                ctx.delete_all(i, tag="flatten")
+            p = pos.get(i, 0)
+            if not p:
+                continue
+            bids, asks = ctx.book(i)
+            lv = bids if p > 0 else asks
+            if lv:
+                ctx.ioc(i, "ask" if p > 0 else "bid", lv[0][0] - 3 if p > 0 else lv[0][0] + 3, abs(p), tag="flatten")
+
     @staticmethod
     def _depth_px(levels, lots):
         """Price where cumulative volume first reaches `lots` (best price first)."""
@@ -241,6 +309,10 @@ class StockMM:
             if opp and ((side == "bid" and min(opp) <= px) or (side == "ask" and max(opp) >= px)):
                 continue  # our own resting order is in the way: the exchange would refuse a self-trade
             edge = (ref - px) if side == "bid" else (px - ref)
+            if self.moving.get(i, (-1e18, 0))[0] > self.clock():
+                p = pos.get(i, 0)
+                if not ((side == "bid" and p < 0) or (side == "ask" and p > 0)):
+                    continue  # during a fast move only trades that shrink the position
             if edge >= self.take_edge:
                 p = pos.get(i, 0)
                 room = (self.soft_limit - p) if side == "bid" else (self.soft_limit + p)  # never past the soft limit

@@ -656,6 +656,38 @@
    "short": "both: buy and sell quotes on every stock. reduce: only the side that shrinks our position. off: no waiting quotes, only picking off.",
    "long": "In a crowded simulator market our waiting quotes lost about 1.4 ticks per lot (they mostly got hit when already stale) while picking off earned about 1.3. 'reduce' keeps quotes only to unload what picking off builds up. In the simulator it scored the same as 'both' within noise.",
    "when": "both. Switch to reduce if 'Our waiting quote was hit' stays clearly negative and lowering Quote size did not help."
+  },
+  "move_ticks": {
+   "label": "Fast-move alarm",
+   "group": "limits",
+   "unit": "ticks",
+   "short": "If fair value moves this many ticks within the move window, stop quoting that stock and only trade to shrink the position. 0 = off.",
+   "long": "On the real exchange CRWV jumped 3% (44 ticks) in 5 seconds while we were short 33 lots, costing about 130. Normal 5-second moves are 1-3 ticks. 10 reacts to real jumps; 3 was too sensitive and stopped trading most of the time in the simulator.",
+   "when": "10. Raise to 20 if the bot pauses too often ('fast_move' in Events)."
+  },
+  "move_window": {
+   "label": "Fast-move window",
+   "group": "limits",
+   "unit": "seconds",
+   "short": "How far back the fast-move alarm looks.",
+   "long": "",
+   "when": "5."
+  },
+  "move_pause": {
+   "label": "Pause after a fast move",
+   "group": "limits",
+   "unit": "seconds",
+   "short": "How long a stock stays paused after a fast move.",
+   "long": "",
+   "when": "5."
+  },
+  "max_loss": {
+   "label": "Loss stop",
+   "group": "limits",
+   "unit": "currency",
+   "short": "If this run loses more than this, the bot cancels everything, closes all positions and stops trading. 0 = off.",
+   "long": "Measured from the PnL when the run started (positions valued at the last traded price, like the leaderboard).",
+   "when": "50 for careful runs; raise as you trust the bot more."
   }
  }
 }
