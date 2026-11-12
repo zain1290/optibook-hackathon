@@ -1,0 +1,24 @@
+{"kind":"start","mode":"combo","pairs":[],"t":0.0}
+{"kind":"news","text":"AI spending boom continues: memory names rally","instruments":["MU","SNDK"],"score":2,"ts":11.3,"t":11.3}
+{"kind":"news_seen","post":{"timestamp":11.3,"post":"AI spending boom continues: memory names rally","meta_data":{"source":"newswire"}},"mids":{"AMD":162.3,"AVGO":205.85,"CRWV":144.05,"MU":78.95,"NBIS":93.4,"NVDA":124.0,"SNDK":53.15,"VRT":65.0},"t":11.3}
+{"kind":"news","text":"MU misses revenue estimates, shares slide after hours","instruments":["MU"],"score":-2,"ts":46.3,"t":46.3}
+{"kind":"news_seen","post":{"timestamp":46.3,"post":"MU misses revenue estimates, shares slide after hours","meta_data":{"source":"newswire"}},"mids":{"AMD":162.6,"AVGO":207.85,"CRWV":144.55,"MU":80.45,"NBIS":93.2,"NVDA":125.4,"SNDK":53.75,"VRT":65.1},"t":46.3}
+{"kind":"news","text":"Retail investors keep talking about AMD on forums","instruments":["AMD"],"score":0,"ts":94.9,"t":94.9}
+{"kind":"news_seen","post":{"timestamp":94.9,"post":"Retail investors keep talking about AMD on forums","meta_data":{"source":"newswire"}},"mids":{"AMD":161.2,"AVGO":208.05,"CRWV":143.65,"MU":79.65,"NBIS":92.7,"NVDA":124.4,"SNDK":53.45,"VRT":65.2},"t":94.9}
+{"kind":"news","text":"Reports: hyperscaler signs multi-billion order with AMD","instruments":["AMD"],"score":1,"ts":138.8,"t":138.8}
+{"kind":"news_seen","post":{"timestamp":138.8,"post":"Reports: hyperscaler signs multi-billion order with AMD","meta_data":{"source":"newswire"}},"mids":{"AMD":161.6,"AVGO":208.65,"CRWV":144.25,"MU":78.85,"NBIS":93.35,"NVDA":123.2,"SNDK":53.55,"VRT":65.1},"t":138.8}
+{"kind":"news","text":"Short seller publishes report questioning NBIS accounting","instruments":["NBIS"],"score":-2,"ts":205.1,"t":205.1}
+{"kind":"news_seen","post":{"timestamp":205.1,"post":"Short seller publishes report questioning NBIS accounting","meta_data":{"source":"newswire"}},"mids":{"AMD":164.7,"AVGO":210.45,"CRWV":143.45,"MU":79.35,"NBIS":93.0,"NVDA":123.9,"SNDK":54.55,"VRT":64.5},"t":205.1}
+{"kind":"news","text":"MU to present at industry conference next week","instruments":["MU"],"score":0,"ts":294.9,"t":294.9}
+{"kind":"news_seen","post":{"timestamp":294.9,"post":"MU to present at industry conference next week","meta_data":{"source":"newswire"}},"mids":{"AMD":163.4,"AVGO":210.15,"CRWV":139.65,"MU":78.15,"NBIS":90.75,"NVDA":122.7,"SNDK":54.05,"VRT":64.8},"t":294.9}
+{"kind":"news","text":"NVDA CEO spotted at coffee shop, says 'busy times'","instruments":["NVDA"],"score":0,"ts":345.7,"t":345.7}
+{"kind":"news_seen","post":{"timestamp":345.7,"post":"NVDA CEO spotted at coffee shop, says 'busy times'","meta_data":{"source":"newswire"}},"mids":{"AMD":163.9,"AVGO":210.25,"CRWV":137.95,"MU":78.85,"NBIS":90.2,"NVDA":123.5,"SNDK":53.65,"VRT":64.2},"t":345.7}
+{"kind":"news","text":"AI spending boom continues: power names rally","instruments":["VRT"],"score":2,"ts":417.3,"t":417.3}
+{"kind":"news_seen","post":{"timestamp":417.3,"post":"AI spending boom continues: power names rally","meta_data":{"source":"newswire"}},"mids":{"AMD":163.4,"AVGO":210.15,"CRWV":140.4,"MU":79.15,"NBIS":91.5,"NVDA":121.6,"SNDK":53.25,"VRT":64.2},"t":417.3}
+{"kind":"news","text":"CRWV CEO spotted at coffee shop, says 'busy times'","instruments":["CRWV"],"score":0,"ts":499.6,"t":499.6}
+{"kind":"news_seen","post":{"timestamp":499.6,"post":"CRWV CEO spotted at coffee shop, says 'busy times'","meta_data":{"source":"newswire"}},"mids":{"AMD":163.5,"AVGO":208.95,"CRWV":141.75,"MU":78.65,"NBIS":92.3,"NVDA":120.9,"SNDK":52.75,"VRT":65.4},"t":499.6}
+{"kind":"news","text":"Retail investors keep talking about VRT on forums","instruments":["VRT"],"score":0,"ts":549.8,"t":549.8}
+{"kind":"news_seen","post":{"timestamp":549.8,"post":"Retail investors keep talking about VRT on forums","meta_data":{"source":"newswire"}},"mids":{"AMD":162.4,"AVGO":208.75,"CRWV":140.3,"MU":78.05,"NBIS":93.2,"NVDA":120.3,"SNDK":52.25,"VRT":65.5},"t":549.8}
+{"kind":"flatten_all","positions":{"AMD":-10,"AVGO":-10,"NVDA":-20,"MU":0,"SNDK":-30,"CRWV":45,"NBIS":20,"VRT":10},"t":600.0}
+{"kind":"flatten_net","positions":{"AMD":0,"AVGO":0,"NVDA":0,"MU":0,"SNDK":0,"CRWV":0,"NBIS":0,"VRT":0},"t":600.0}
+{"kind":"stop","reason":"time limit","loops":6000,"t":600.5}
