@@ -47,12 +47,12 @@ class StockMM:
     name = "stock_mm"
     LIVE = ("size", "inside", "quote_edge", "skew_per_lot", "soft_limit", "position_limit", "sticky_ticks",
             "take_edge", "take_size", "news_pause", "news_trade_size", "news_min_score", "wind_down_s",
-            "max_stocks", "fair", "depth_lots", "quote_mode", "move_ticks", "move_window", "move_pause", "max_loss")
+            "max_stocks", "fair", "depth_lots", "quote_mode", "move_ticks", "move_window", "move_pause", "max_loss", "sweep")
 
     def __init__(self, pairs=None, instruments=None, position_limit=300, soft_limit=None, size=10, inside=1,
                  quote_edge=1.5, skew_per_lot=0.02, sticky_ticks=2, take_edge=0.5, take_size=20, news_pause=3.0,
                  news_trade_size=0, news_min_score=1, wind_down_s=60.0, max_stocks=0, fair="deep", depth_lots=200,
-                 quote_mode="both", move_ticks=10.0, move_window=5.0, move_pause=5.0, max_loss=0.0,
+                 quote_mode="both", move_ticks=10.0, move_window=5.0, move_pause=5.0, max_loss=0.0, sweep=True,
                  reserve_ops=6, max_ops_per_sec=15, clock=None, hedge_cooldown=0.0):
         self.clock = clock or time.monotonic
         self.instruments = [s for s in instruments.split(",")] if isinstance(instruments, str) else instruments
@@ -78,6 +78,7 @@ class StockMM:
         self.moving = {}       # stock -> (until, direction +1 up / -1 down)
         # loss stop: close everything and stop trading if this run loses more than max_loss (0 = off)
         self.max_loss = max_loss
+        self.sweep = sweep  # pick-offs take every qualifying level in one order
         self.start_pnl, self.halted, self._t_pnl = None, False, -1e18
 
     # ------------------------------------------------------------------ setup
@@ -309,15 +310,25 @@ class StockMM:
             if opp and ((side == "bid" and min(opp) <= px) or (side == "ask" and max(opp) >= px)):
                 continue  # our own resting order is in the way: the exchange would refuse a self-trade
             edge = (ref - px) if side == "bid" else (px - ref)
-            if self.moving.get(i, (-1e18, 0))[0] > self.clock():
+            until, d = self.moving.get(i, (-1e18, 0))
+            if until > self.clock():
                 p = pos.get(i, 0)
-                if not ((side == "bid" and p < 0) or (side == "ask" and p > 0)):
-                    continue  # during a fast move only trades that shrink the position
+                with_move = (side == "bid" and d > 0) or (side == "ask" and d < 0)
+                shrinks = (side == "bid" and p < 0) or (side == "ask" and p > 0)
+                if not (with_move or shrinks):
+                    continue  # during a fast move: pick off quotes left behind by the move, never fight it
             if edge >= self.take_edge:
                 p = pos.get(i, 0)
                 room = (self.soft_limit - p) if side == "bid" else (self.soft_limit + p)  # never past the soft limit
-                vol = min(self.take_size, lv[0][1], ctx.capacity(i, side, pos), max(0, room))
-                if vol > 0 and ctx.ioc(i, side, px, vol, tag="take"):
+                # sweep: every level that is still take_edge through our price, in ONE order (saves order budget)
+                limit_px, avail = px, 0
+                for lpx, lvol in lv:
+                    e2 = (ref - lpx) if side == "bid" else (lpx - ref)
+                    if e2 < self.take_edge or (not self.sweep and avail):
+                        break
+                    limit_px, avail = lpx, avail + lvol
+                vol = min(self.take_size, avail, ctx.capacity(i, side, pos), max(0, room))
+                if vol > 0 and ctx.ioc(i, side, limit_px, vol, tag="take"):
                     done = True
         return done
 

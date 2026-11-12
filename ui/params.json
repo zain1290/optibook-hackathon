@@ -688,6 +688,14 @@
    "short": "If this run loses more than this, the bot cancels everything, closes all positions and stops trading. 0 = off.",
    "long": "Measured from the PnL when the run started (positions valued at the last traded price, like the leaderboard).",
    "when": "50 for careful runs; raise as you trust the bot more."
+  },
+  "sweep": {
+   "label": "Sweep levels when picking off",
+   "group": "taking",
+   "unit": "",
+   "short": "One pick-off order takes every price level that is still wrong, up to the pick-off size, instead of only the best one.",
+   "long": "Saves order budget: one order instead of several. Like team Echo, who took ~20-lot clips at a time.",
+   "when": "On."
   }
  }
 }

@@ -110,6 +110,18 @@ def ensure_connected(e, run, state):
         return False
 
 
+# Named settings bundles: --profile NAME, then any -p k=v on top.
+PROFILES = {
+    # first live minutes after the 12 Nov CRWV jump: small, 1-tick pick-offs, loss stop
+    "careful": {"position_limit": 30, "size": 5, "take_edge": 1, "take_size": 5, "max_loss": 50},
+    # like team Echo (1st, ~+4,300/h on 12 Nov): aggressive in ~88% of trades, ~20-lot clips on both sides,
+    # big positions, skips CRWV. Mostly picking off; quotes only to unload.
+    "echo": {"position_limit": 100, "soft_limit": 60, "take_edge": 0.5, "take_size": 20, "sweep": True,
+             "quote_mode": "reduce", "size": 10, "skew_per_lot": 0.02, "max_loss": 300, "move_ticks": 10,
+             "instruments": "AMD,AVGO,NVDA,MU,SNDK,NBIS,VRT"},
+}
+
+
 def make_session(a):
     """Returns (exchange, clock, wait, info). wait(seconds) sleeps live, advances the market in the sim."""
     if a.sim:
@@ -139,6 +151,7 @@ def make_session(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--strategy", default="combo", choices=list(STRATEGIES))
+    ap.add_argument("--profile", choices=list(PROFILES), help="named settings bundle (careful, echo); -p overrides it")
     ap.add_argument("--observe", action="store_true", help="record only, send no orders")
     ap.add_argument("--pairs", help="comma list of PRIMARY:DUAL, primary = the LIQUID listing")
     ap.add_argument("--period", type=float, default=0.1, help="seconds between loops (faster wins pick-offs)")
@@ -186,7 +199,10 @@ def main():
     pairs = [tuple(p.split(":")) for p in a.pairs.split(",")] if a.pairs else detect_pairs(instruments)
 
     strat, settings = None, None
-    params = parse_params(a.param)
+    params = dict(PROFILES.get(a.profile) or {})
+    params.update(parse_params(a.param))  # -p k=v overrides the profile
+    if a.profile:
+        print(f"profile {a.profile}: {params}")
     if not a.observe and not a.flatten:
         if sess["mode"] == "live":
             params.setdefault("hedge_cooldown", 0.2)
