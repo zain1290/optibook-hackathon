@@ -202,12 +202,22 @@ def flatten_net(e, pairs, slip_ticks=5, others=()):
             e.insert_order(venue, price=ctx.px(venue, asks[0][0] + slip_ticks), volume=-net, side="bid", order_type="ioc")
 
 
+FLATTEN_PACE = 0.0  # seconds between closing requests; run_live sets 0.08 live (the exchange cuts the
+                    # connection above ~25 requests/s, and a cut would leave positions open)
+
+
+def _pace():
+    if FLATTEN_PACE:
+        time.sleep(FLATTEN_PACE)
+
+
 def flatten_all(e, instruments, slip_ticks=5):
     """End of session / emergency: cancel everything and close all positions with IOC."""
     ctx = Ctx(e)
     ctx.log("flatten_all", positions=e.get_positions())
     for i in instruments:
         e.delete_orders(i)
+        _pace()
     pos = e.get_positions()
     for i in instruments:
         p = pos.get(i, 0)
@@ -218,5 +228,7 @@ def flatten_all(e, instruments, slip_ticks=5):
             ctx._tag("flatten")
         if p > 0 and bids:
             e.insert_order(i, price=ctx.px(i, bids[0][0] - slip_ticks), volume=p, side="ask", order_type="ioc")
+            _pace()
         elif p < 0 and asks:
             e.insert_order(i, price=ctx.px(i, asks[0][0] + slip_ticks), volume=-p, side="bid", order_type="ioc")
+            _pace()

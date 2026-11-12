@@ -58,6 +58,28 @@ def to_jsonable(o, depth=0):
     return repr(o)
 
 
+def norm_side(x):
+    """The real client returns sides as a Cap'n Proto enum that equals 'bid' but is not the string 'bid'
+    (so it fails as a dict key). Everything downstream gets plain 'bid' / 'ask'."""
+    if x == "bid":
+        return "bid"
+    if x == "ask":
+        return "ask"
+    return x if isinstance(x, str) else str(getattr(x, "name", x)).lower()
+
+
+def _norm_sides(objs, attrs=("side", "aggressor_side")):
+    for o in objs or []:
+        for a in attrs:
+            v = getattr(o, a, None)
+            if v is not None and not isinstance(v, str):
+                try:
+                    setattr(o, a, norm_side(v))
+                except Exception:
+                    pass
+    return objs
+
+
 class Jsonl:
     def __init__(self, path):
         self.f = open(path, "a", buffering=1 << 16)
@@ -228,6 +250,8 @@ class LoggingExchange:
             self.cache_hits += 1
             return self._cache[key]
         out = self._timed(name, getattr(self._e, name), instrument_id)
+        if name == "get_outstanding_orders" and out:
+            _norm_sides(out.values())
         self._cache[key] = out
         return out
 
@@ -277,10 +301,14 @@ class LoggingExchange:
             s[1] += ms
             s[2] = max(s[2], ms)
 
+    SIDED = ("poll_new_trades", "get_trade_history", "poll_new_trade_ticks", "get_trade_tick_history")
+
     def __getattr__(self, name):
         attr = getattr(self._e, name)
         if not callable(attr) or name in self.ORDER_METHODS:
             return attr
+        if name in self.SIDED:  # plain 'bid' / 'ask' sides for everything downstream
+            return lambda *a, **k: _norm_sides(self._timed(name, attr, *a, **k))
         return lambda *a, **k: self._timed(name, attr, *a, **k)
 
     def _order(self, action, instrument_id, req, call):

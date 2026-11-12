@@ -109,3 +109,37 @@ def test_loop_cache_shares_reads_and_drops_them_after_our_orders(tmp_path):
     p.begin_loop()
     assert p.get_last_price_book("NVDA") is not b1  # a new loop reads fresh
     run.close()
+
+
+def test_enum_sides_from_the_real_client_become_plain_strings(tmp_path):
+    from runlog import LoggingExchange, Run
+    from runlog.core import norm_side
+
+    class CapnpEnum:  # behaves like the real client's side: equals 'bid' but is not a str
+        def __init__(self, v):
+            self.v = v
+
+        def __eq__(self, o):
+            return o == self.v
+
+        def __hash__(self):
+            return hash(("enum", self.v))
+
+    class O:
+        def __init__(self, oid, side):
+            self.order_id, self.side, self.price, self.volume, self.instrument_id = oid, CapnpEnum(side), 10.0, 1, "X"
+
+    class Fake:
+        def get_outstanding_orders(self, i):
+            return {1: O(1, "bid"), 2: O(2, "ask")}
+
+        def poll_new_trades(self, i):
+            return [O(3, "ask")]
+
+    assert norm_side(CapnpEnum("bid")) == "bid"
+    p = LoggingExchange(Fake(), Run(str(tmp_path), "t", "sim", lambda: 0.0))
+    p.begin_loop()
+    oo = p.get_outstanding_orders("X")
+    assert [o.side for o in oo.values()] == ["bid", "ask"] and all(isinstance(o.side, str) for o in oo.values())
+    assert {"bid": [], "ask": []}[oo[1].side] == []
+    assert p.poll_new_trades("X")[0].side == "ask"

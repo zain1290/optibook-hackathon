@@ -170,6 +170,9 @@ def main():
     if not a.sim:
         take_live_lock(a.force)
     e, clock, wait, sess = make_session(a)
+    if sess["mode"] == "live":  # pace every close-out: >25 requests/s gets the connection cut (measured 12 Nov)
+        import strategies.common as _common
+        _common.FLATTEN_PACE = 0.08
     mode = "observe" if a.observe else ("flatten" if a.flatten else a.strategy)
     run = Run(a.logdir, mode, sess["mode"], clock)
     sys.stdout = Tee(os.path.join(run.dir, "console.log"))
@@ -289,6 +292,8 @@ def main():
         print("stopping")
     finally:
         try:
+            if sess["mode"] == "live":
+                wait(1.0)  # let the last second's order budget drain before closing out
             exit_mode = "none" if a.no_flatten_on_exit else a.exit
             others = [i for i in tradable if not any(i in p for p in pairs)]
             for attempt in range(8):  # retry: closing orders can be rate-limited or only partly filled

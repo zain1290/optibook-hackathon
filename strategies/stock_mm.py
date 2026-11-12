@@ -52,7 +52,7 @@ class StockMM:
     def __init__(self, pairs=None, instruments=None, position_limit=300, soft_limit=None, size=10, inside=1,
                  quote_edge=1.5, skew_per_lot=0.02, sticky_ticks=2, take_edge=0.5, take_size=20, news_pause=3.0,
                  news_trade_size=0, news_min_score=1, wind_down_s=60.0, max_stocks=0, fair="deep", depth_lots=200,
-                 quote_mode="both", reserve_ops=6, max_ops_per_sec=20, clock=None, hedge_cooldown=0.0):
+                 quote_mode="both", reserve_ops=6, max_ops_per_sec=15, clock=None, hedge_cooldown=0.0):
         self.clock = clock or time.monotonic
         self.instruments = [s for s in instruments.split(",")] if isinstance(instruments, str) else instruments
         self.position_limit, self.size, self.inside, self.quote_edge = position_limit, size, inside, quote_edge
@@ -164,7 +164,7 @@ class StockMM:
         own = {"bid": [], "ask": []}
         mine = {}
         for r in own_raw.values():
-            o = _Own(r.order_id, r.side, ctx.t(i, r.price), int(r.volume))
+            o = _Own(r.order_id, "bid" if r.side == "bid" else "ask", ctx.t(i, r.price), int(r.volume))
             own[o.side].append(o)
             mine[(o.side, o.price_t)] = mine.get((o.side, o.price_t), 0) + o.volume
         b = e.get_last_price_book(i)

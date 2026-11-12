@@ -18,7 +18,7 @@ class Combo:
     name = "combo"
 
     def __init__(self, pairs=None, deriv_edge=3, deriv_size=10, vol=None, hedge_band=40, use_pairs=False,
-                 stock_pairs="MU:SNDK,NVDA:AMD,CRWV:NBIS", entry_z=2.5, max_ops_per_sec=20, clock=None,
+                 stock_pairs="MU:SNDK,NVDA:AMD,CRWV:NBIS", entry_z=2.5, max_ops_per_sec=15, clock=None,
                  hedge_cooldown=0.0, **mm_params):
         self.clock = clock or time.monotonic
         self.budget = RateBudget(max_ops_per_sec, self.clock, reserve=mm_params.get("reserve_ops", 6))
